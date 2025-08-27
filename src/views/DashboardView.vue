@@ -184,7 +184,7 @@ const abrirDialogoParaEdicaoCheckIn = async (visita) => {
                 municipeSelecionadoCheckIn.value = response.data[0];
             }
         } catch (error) {
-            toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar o visitante.' });
+            toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar o visitante.', life: 3000 });
         }
     }
 };
@@ -212,7 +212,7 @@ const buscarMunicipes = (event) => {
 
 const salvarCheckIn = async () => {
     if (!novoCheckIn.value.municipe || !novoCheckIn.value.conta_destino) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Visitante e Destino são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Visitante e Destino são obrigatórios.', life: 3000 });
         return;
     }
     isLoadingCheckIn.value = true;
@@ -227,18 +227,18 @@ const salvarCheckIn = async () => {
         if (novoCheckIn.value.id) {
             // Se tem ID, é uma ATUALIZAÇÃO (PATCH)
             response = await apiClient.patch(`/api/checkins/${novoCheckIn.value.id}/`, payload);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Check-in atualizado!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Check-in atualizado!', life: 3000 });
         } else {
             // Se não tem ID, é uma CRIAÇÃO (POST)
             response = await apiClient.post('/api/checkins/', novoCheckIn.value);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Check-in registrado!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Check-in registrado!', life: 3000 });
         }
         
         dialogoCheckInVisivel.value = false;
         await carregarVisitasDoDia(); // Recarrega a lista para refletir a mudança
         
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: `Não foi possível salvar o registro.` });
+        toast.add({ severity: 'error', summary: 'Erro', detail: `Não foi possível salvar o registro.`, life: 3000 });
     } finally {
         isLoadingCheckIn.value = false;
     }
@@ -253,10 +253,10 @@ const confirmarExclusaoCheckIn = (visita) => {
         accept: async () => {
             try {
                 await apiClient.delete(`/api/checkins/${visita.id}/`);
-                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro excluído.' });
+                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro excluído.', life: 3000 });
                 await carregarVisitasDoDia(); // Recarrega a lista
             } catch (error) {
-                toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir o registro.' });
+                toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir o registro.', life: 3000 });
             }
         },
     });

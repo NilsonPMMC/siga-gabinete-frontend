@@ -1,8 +1,36 @@
 <template>
     <div class="page-container">
-        <div class="grid">
-            <div class="col-12">
-                <div class="card">
+        <Toast />
+        <ConfirmDialog />
+        <header class="page-header">
+        <div class="flex align-items-center">
+            <h1>Eventos da Conta</h1>
+        </div>
+        </header>
+        <Card class="mb-4">
+            <template #title>Relatório de Agenda</template>
+            <template #content>
+                <div class="grid formgrid p-fluid align-items-end">
+                    <div class="field col-12 md:col-6">
+                        <label for="filtroDataRelatorio">Selecione o Período do Relatório</label>
+                        <Calendar id="filtroDataRelatorio" v-model="filtroDataRelatorio" selectionMode="range" dateFormat="dd/mm/yy" />
+                    </div>
+                    <div class="field col-12 md:col-3 flex align-items-end">
+                        <Button 
+                            label="Gerar PDF" 
+                            icon="pi pi-file-pdf" 
+                            class="p-button-danger"
+                            @click="baixarRelatorioEventos" 
+                            :loading="downloadingPdf"
+                            :disabled="!filtroDataRelatorio || !filtroDataRelatorio[1]"
+                        />
+                    </div>
+                </div>
+            </template>
+        </Card>
+        <main>
+            <Card>
+                <template #content>
                     <Toast />
                     <ConfirmDialog></ConfirmDialog>
 
@@ -17,9 +45,9 @@
 
                     <FullCalendar v-if="!loading" :options="calendarOptions" />
                     <div v-else class="text-center p-5"><ProgressSpinner /></div>
-                </div>
-            </div>
-        </div>
+                </template>
+            </Card>
+        </main>
     </div>
 
     <Dialog v-model:visible="dialogoEventoVisivel" :style="{ width: '800px' }" :header="tituloDialogo" :modal="true" class="p-fluid">
@@ -31,46 +59,40 @@
             <Button label="Checklist" icon="pi pi-check-square" class="p-button-outlined" @click="navegarPara('evento-checklist')" :disabled="isNew" />
         </div>
         
-        <TabView v-model:activeIndex="activeTab">
-            <TabPanel header="Dados Principais">
-                <div class="p-fluid formgrid grid mt-3">
-                    <div class="field col-12">
-                        <label for="nome">Nome do Evento</label>
-                        <InputText id="nome" v-model.trim="eventoEmEdicao.nome" required="true" :class="{'p-invalid': errors.nome}" />
-                        <small class="p-error">{{ errors.nome }}</small>
-                    </div>
-                    
-                    <div class="field col-12 md:col-6">
-                        <label for="data_inicio">Início</label>
-                        <Calendar id="data_inicio" v-model="eventoEmEdicao.data_evento" :showTime="true" hourFormat="24" dateFormat="dd/mm/yy" />
-                    </div>
+        <Divider />
 
-                    <div class="field col-12 md:col-6">
-                        <label for="local">Local</label>
-                        <InputText id="local" v-model="eventoEmEdicao.local" />
-                    </div>
+        <div class="p-fluid formgrid grid mt-3">
+            <div class="field col-12">
+                <label for="nome">Nome do Evento</label>
+                <InputText id="nome" v-model.trim="eventoEmEdicao.nome" required="true" :class="{'p-invalid': errors.nome}" />
+                <small class="p-error">{{ errors.nome }}</small>
+            </div>
+            
+            <div class="field col-12 md:col-6">
+                <label for="data_inicio">Início</label>
+                <Calendar id="data_inicio" v-model="eventoEmEdicao.data_evento" :showTime="true" hourFormat="24" dateFormat="dd/mm/yy" />
+            </div>
 
-                    <div class="field col-12">
-                        <label for="descricao">Descrição</label>
-                        <Textarea id="descricao" v-model="eventoEmEdicao.descricao" rows="4" />
-                    </div>
-                    
-                    <div class="field col-12 md:col-6">
-                        <label for="status">Status</label>
-                        <Dropdown id="status" v-model="eventoEmEdicao.status" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Selecione um status"></Dropdown>
-                    </div>
-                    
-                    <div class="field col-12 md:col-6 flex flex-column justify-content-center">
-                        <label for="ativo" class="mb-3">Ativo para Check-in</label>
-                        <InputSwitch id="ativo" v-model="eventoEmEdicao.ativo" />
-                    </div>
-                </div>
-            </TabPanel>
+            <div class="field col-12 md:col-6">
+                <label for="local">Local</label>
+                <InputText id="local" v-model="eventoEmEdicao.local" />
+            </div>
 
-            <TabPanel header="Resumo Convidados" :disabled="isNew">
-                <p>Um resumo rápido da lista de convidados pode aparecer aqui.</p>
-            </TabPanel>
-        </TabView>
+            <div class="field col-12">
+                <label for="descricao">Descrição</label>
+                <Textarea id="descricao" v-model="eventoEmEdicao.descricao" rows="4" />
+            </div>
+            
+            <div class="field col-12 md:col-6">
+                <label for="status">Status</label>
+                <Dropdown id="status" v-model="eventoEmEdicao.status" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Selecione um status"></Dropdown>
+            </div>
+            
+            <div class="field col-12 md:col-6 flex flex-column justify-content-center">
+                <label for="ativo" class="mb-3">Ativo para Check-in</label>
+                <InputSwitch id="ativo" v-model="eventoEmEdicao.ativo" />
+            </div>
+        </div>
 
         <template #footer>
             <div class="flex gap-2">
@@ -95,6 +117,9 @@ import { useAuthStore } from '@/stores/auth';
 
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
+import Panel from 'primevue/panel';
+import Calendar from 'primevue/calendar';
+import Divider from 'primevue/divider'
 
 import InputSwitch from 'primevue/inputswitch';
 
@@ -109,7 +134,11 @@ const calendarOptions = ref({});
 const dialogoEventoVisivel = ref(false);
 const eventoEmEdicao = ref({});
 const errors = ref({});
-const activeTab = ref(0); // Controla a aba ativa
+const activeTab = ref(0);
+const dataInicio = ref(null);
+const dataFim = ref(null);
+const filtroDataRelatorio = ref(null); 
+const downloadingPdf = ref(false);
 
 const navegarPara = (routeName) => {
     // Fecha o modal antes de navegar
@@ -200,7 +229,7 @@ const salvarEvento = async () => {
     try {
         if (!isNew.value) {
             await eventosService.updateEvento(eventoEmEdicao.value.id, eventoEmEdicao.value);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento atualizado!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento atualizado!', life: 3000 });
         } else {
             await eventosService.createEvento(eventoEmEdicao.value);
             toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento criado!' });
@@ -208,7 +237,7 @@ const salvarEvento = async () => {
         dialogoEventoVisivel.value = false;
         fetchEventos();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar o evento.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar o evento.', life: 3000 });
     }
 };
 
@@ -221,11 +250,11 @@ const confirmarDelete = () => {
         accept: async () => {
             try {
                 await eventosService.deleteEvento(eventoEmEdicao.value.id);
-                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento deletado.' });
+                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento deletado.', life: 3000 });
                 dialogoEventoVisivel.value = false;
                 fetchEventos();
             } catch (error) {
-                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível deletar o evento.' });
+                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível deletar o evento.', life: 3000 });
             }
         },
     });
@@ -247,6 +276,8 @@ calendarOptions.value = {
     eventClick: (clickInfo) => abrirDialogoEdicao(clickInfo.event.extendedProps),
     locale: 'pt-br',
     buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' },
+    slotMinTime: '07:00:00',
+    slotMaxTime: '22:00:00',
 };
 
 const getCorPorStatus = (status) => ({
@@ -254,6 +285,47 @@ const getCorPorStatus = (status) => ({
     concluido: '#64748B',
     cancelado: '#EF4444',
 })[status] || '#3B82F6';
+
+const baixarRelatorioEventos = async () => {
+    // A validação agora checa se o array tem duas datas
+    if (!filtroDataRelatorio.value || !filtroDataRelatorio.value[1]) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione um período completo (início e fim).', life: 3000 });
+        return;
+    }
+
+    const [data_inicio, data_fim] = filtroDataRelatorio.value;
+
+    downloadingPdf.value = true;
+    try {
+        // O serviço já espera duas datas, então a chamada continua a mesma
+        const response = await eventosService.getEventosReport(data_inicio, data_fim);
+        
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        
+        const contentDisposition = response.headers['content-disposition'];
+        let fileName = 'relatorio_eventos.pdf';
+        if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (fileNameMatch && fileNameMatch.length === 2)
+                fileName = fileNameMatch[1];
+        }
+
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        
+        link.parentNode.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório.', life: 3000 });
+        console.error("Erro ao baixar relatório de eventos:", err);
+    } finally {
+        downloadingPdf.value = false;
+    }
+};
 </script>
 
 <style scoped>

@@ -40,6 +40,7 @@ const router = createRouter({
     { path: '/contatos', name: 'contatos', component: ContatosView, meta: { requiresAuth: true } },
     { path: '/busca', name: 'busca', component: BuscaView, meta: { requiresAuth: true } },
     { path: '/configuracoes', name: 'configuracoes', component: ConfiguracoesView, meta: { requiresAuth: true } },
+    { path: '/configuracoes/checklist-items', name: 'config-checklist-items', component: () => import('@/views/eventos/MasterChecklistManager.vue'), meta: { requiresAuth: true, permission: 'canManageEventos' } },
     { path: '/recuperar-senha', name: 'recuperar-senha', component: RequestPasswordResetView },
     { path: '/reset-password/:uid/:token', name: 'reset-password-confirm', component: ResetPasswordConfirmView },
     { path: '/espacos', name: 'espacos', component: EspacosView, meta: { requiresAuth: true } },
@@ -53,6 +54,19 @@ const router = createRouter({
       name: 'eventos-lista', 
       component: () => import('@/views/eventos/EventosLista.vue'), 
       meta: { requiresAuth: true, permission: 'canManageEventos' } // Permissão específica
+    },
+    {
+      path: '/mailings',
+      name: 'mailing-manager',
+      component: () => import('@/views/eventos/MailingManager.vue'),
+      meta: { requiresAuth: true, permission: 'canManageEventos' }
+    },
+    {
+      path: '/mailings/:id/detail',
+      name: 'mailing-list-detail',
+      component: () => import('@/views/eventos/MailingListDetail.vue'),
+      props: true,
+      meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
     {
       path: '/eventos/:id/convidados',
@@ -94,6 +108,12 @@ const router = createRouter({
       name: 'publico-check-in',
       component: () => import('@/views/public/RegistrarPresenca.vue'),
       props: true
+    },
+    {
+      path: '/public/checklist/:token',
+      name: 'public-checklist',
+      component: () => import('@/views/public/PreencherChecklist.vue'),
+      props: true // Passa o :token como prop para o componente
     },
   ]
 })

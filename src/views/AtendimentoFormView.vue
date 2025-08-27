@@ -25,6 +25,8 @@ const categorias = ref([]);
 const categoriasContato = ref([]);
 const usuariosFiltrados = ref([]);
 
+const responsavelSelecionado = ref(null);
+
 const isLoading = ref(true);
 const dialogMunicipeVisivel = ref(false);
 const municipeEmEdicao = ref({});
@@ -35,7 +37,11 @@ const contatosEncontrados = ref([]);
 // Adicione este 'watch' para filtrar os usuários dinamicamente
 watch(() => atendimento.value.conta, (novaContaId) => {
     // Limpa a seleção de responsável se a conta mudar
-    atendimento.value.responsavel = null;
+    //atendimento.value.responsavel = null;
+
+    if (responsavelSelecionado.value && !responsavelSelecionado.value.contas.includes(novaContaId)) {
+        responsavelSelecionado.value = null;
+    }
 
     if (novaContaId) {
         // Filtra a lista principal de usuários
@@ -84,7 +90,7 @@ const fetchDropdownData = async () => {
         categoriasContato.value = categoriasContatoRes.data;
 
     } catch (error) { 
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar dados de apoio.' }); 
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar dados de apoio.', life: 3000 }); 
     }
 };
 
@@ -98,8 +104,12 @@ onMounted(async () => {
     try {
       const { data } = await apiClient.get(`/api/atendimentos/${route.params.id}/`);
       atendimento.value = { ...data, categorias: data.categorias?.map(c => c.id) || [] };
+
+      if (data.responsavel_obj) {
+        responsavelSelecionado.value = data.responsavel_obj;
+      }
+
       if (data.municipe) {
-        // Para o AutoComplete, buscamos o objeto completo do munícipe para preencher o campo
         const municipeRes = await apiClient.get(`/api/municipes/lookup/?q=${data.municipe}`);
         if (municipeRes.data.length > 0) {
             municipeSelecionado.value = municipeRes.data[0];
@@ -139,6 +149,8 @@ watch(municipeSelecionado, (novoValor) => {
 
 const salvarAtendimento = async () => {
   isLoading.value = true;
+  atendimento.value.responsavel = responsavelSelecionado.value ? responsavelSelecionado.value.id : null;
+  
   try {
     const { data } = isEditMode.value
       ? await apiClient.put(`/api/atendimentos/${atendimento.value.id}/`, atendimento.value)
@@ -147,7 +159,7 @@ const salvarAtendimento = async () => {
     toast.add({ severity: 'success', summary: 'Sucesso', detail: isEditMode.value ? 'Atendimento atualizado!' : `Atendimento criado! Protocolo: ${data.protocolo}`, life: 3000 });
     router.push(authStore.isRecepcao ? '/' : `/atendimentos/${data.id}`);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar o atendimento.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar o atendimento.', life: 3000 });
   } finally {
     isLoading.value = false;
   }
@@ -318,12 +330,12 @@ const extractApiError = (error) => {
 const validarEPrepararPayload = (dados) => {
     // 1. Validação de campos obrigatórios (continua igual)
     if (!dados.nome_completo || !dados.categoria) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.', life: 3000 });
         return null;
     }
 
     if (!dados.telefones || dados.telefones.length === 0 || !dados.telefones[0].numero) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.', life: 3000 });
         return null;
     }
 
@@ -339,7 +351,7 @@ const validarEPrepararPayload = (dados) => {
             const dia = data.getDate().toString().padStart(2, '0');
             payload.data_nascimento = `${ano}-${mes}-${dia}`;
         } catch (e) {
-            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.' });
+            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.', life: 3000 });
             return null;
         }
     }
@@ -381,7 +393,7 @@ const executarSalvamento = async (payload) => {
             ? await apiClient.patch(`/api/municipes/${payload.id}/`, payload)
             : await apiClient.post('/api/municipes/', payload);
         
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: payload.id ? 'Contato atualizado!' : 'Contato criado!' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: payload.id ? 'Contato atualizado!' : 'Contato criado!', life: 3000 });
         finalizarCadastroMunicipe(data);
     } catch (error) {
         const errorMsg = extractApiError(error);
@@ -415,7 +427,7 @@ const salvarMunicipe = async () => {
             await executarSalvamento(payload);
         }
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.', life: 3000 });
     }
 };
 
@@ -503,9 +515,9 @@ const handleCriarNovoContato = async () => {
               <label for="responsavel">Atribuir a Responsável (Opcional)</label>
               <Dropdown 
                   id="responsavel" 
-                  v-model="atendimento.responsavel" 
-                  :options="usuariosFiltrados" optionLabel="first_name" 
-                  optionValue="id" 
+                  v-model="responsavelSelecionado" 
+                  :options="usuariosFiltrados"
+                  optionLabel="username"
                   placeholder="Selecione um responsável" 
                   filter 
                   showClear 

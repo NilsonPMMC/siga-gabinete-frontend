@@ -9,8 +9,8 @@
                     <Button icon="pi pi-arrow-left" severity="secondary" text rounded />
                 </router-link>
                 <div>
-                    <h1 class="mb-0">{{ evento.nome }}</h1>
-                    <p class="mt-1 text-color-secondary">Gestão de Convidados</p>
+                    <h1 class="mb-0">Gestão de Convidados</h1>
+                    <p class="mt-1 text-color-secondary">{{ evento.nome }}</p>
                 </div>
             </div>
             <div class="flex align-items-center gap-3">
@@ -18,10 +18,39 @@
                 <Button label="Adicionar por Categoria" icon="pi pi-users" class="p-button-info" @click="abrirDialogoCategoria" />
             </div>
         </header>
+        <Panel header="Relatórios do Evento" toggleable class="mb-4 flex">
+            <div class="flex flex-wrap gap-2">
+                <Button 
+                    label="Lista de Presentes" 
+                    icon="pi pi-file-pdf" 
+                    class="p-button-secondary" 
+                    @click="baixarRelatorio('presentes')"
+                    :loading="downloadingPdf.presentes"
+                />
+                <Button 
+                    label="Gerar Crachás" 
+                    icon="pi pi-id-card" 
+                    class="p-button-secondary" 
+                    @click="baixarRelatorio('crachas')"
+                    :loading="downloadingPdf.crachas"
+                    :disabled="!convidadosSelecionados || convidadosSelecionados.length === 0"
+                />
+                <Button 
+                label="Prismas de Mesa" 
+                icon="pi pi-desktop" 
+                class="p-button-secondary" 
+                @click="baixarRelatorio('prismas')"
+                :loading="downloadingPdf.prismas"
+                :disabled="!convidadosSelecionados || convidadosSelecionados.length === 0"
+            />
+            </div>
+        </Panel>
+        <Message severity="warn" size="small" icon="pi pi-exclamation-circle" v-if="!convidadosSelecionados || convidadosSelecionados.length === 0" class="mb-4">Selecione um ou mais convidados na tabela para gerar os crachás.</Message>
         <main>
-            <DataTable :value="convidados" :loading="loading" responsiveLayout="scroll">
+            <DataTable :value="convidados" :loading="loading" responsiveLayout="scroll" @rowReorder="onRowReorder" v-model:selection="convidadosSelecionados">
                 <template #empty>Nenhum convidado adicionado a este evento.</template>
-                
+                <Column :rowReorder="true" headerStyle="width: 3rem" :reorderableColumn="false" />
+                <Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
                 <Column header="Nome" :sortable="true" sortField="municipe.nome_completo">
                     <template #body="slotProps">
                         <div class="flex flex-column">
@@ -30,16 +59,24 @@
                         </div>
                     </template>
                 </Column>
-                
-                <Column field="municipe.cargo" header="Cargo"></Column>
-                <Column field="municipe.orgao" header="Órgão"></Column>
-
+                <Column header="Cargo / Órgão">
+                    <template #body="slotProps">
+                        <div class="flex flex-column">
+                            <span>{{ slotProps.data.municipe.cargo || 'Não informado' }}</span>
+                            <small v-if="slotProps.data.municipe.orgao" class="text-color-secondary">{{ slotProps.data.municipe.orgao }}</small>
+                        </div>
+                    </template>
+                </Column>
                 <Column header="Telefone">
                     <template #body="slotProps">
                         {{ getTelefonePrincipal(slotProps.data.municipe.telefones) }}
                     </template>
                 </Column>
-
+                <Column header="Presença" bodyClass="text-center" style="width: 8rem">
+                    <template #body="slotProps">
+                        <InputSwitch v-model="slotProps.data.presente" @change="togglePresenca(slotProps.data)" />
+                    </template>
+                </Column>
                 <Column header="Ações" bodyClass="text-center" style="width: 8rem">
                     <template #body="slotProps">
                         <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmarDelete(slotProps.data)" title="Excluir" />
@@ -259,6 +296,8 @@ import Calendar from 'primevue/calendar';
 import Textarea from 'primevue/textarea';
 import Tag from 'primevue/tag';
 import MultiSelect from 'primevue/multiselect';
+import InputSwitch from 'primevue/inputswitch';
+import Message from 'primevue/message';
 
 const route = useRoute();
 const toast = useToast();
@@ -268,6 +307,8 @@ const authStore = useAuthStore();
 const evento = ref({});
 const convidados = ref([]);
 const loading = ref(true);
+const downloadingPdf = ref({ presentes: false, crachas: false, prismas: false });
+
 const dialogoAdicionarVisivel = ref(false);
 const dialogoNovoMunicipeVisivel = ref(false);
 const municipeSelecionado = ref(null);
@@ -285,6 +326,7 @@ const categoriasContato = ref([]);
 
 const dialogoDuplicatasVisivel = ref(false);
 const contatosEncontrados = ref([]);
+const convidadosSelecionados = ref([]);
 
 // --- FUNÇÕES DE CARREGAMENTO ---
 const carregarDados = async () => {
@@ -299,7 +341,10 @@ const carregarDados = async () => {
             eventosService.getConvidados(eventoId)
         ]);
         evento.value = eventoRes.data;
-        convidados.value = convidadosRes.data;
+        convidados.value = convidadosRes.data.map(convidado => ({
+            ...convidado,
+            presente: convidado.status === 'presente'
+        }));
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar dados.', life: 3000 });
     } finally {
@@ -308,6 +353,96 @@ const carregarDados = async () => {
 };
 
 onMounted(carregarDados);
+
+const baixarRelatorio = async (tipo) => {
+    if (tipo === 'presentes') {
+        downloadingPdf.value.presentes = true;
+        try {
+            const response = await eventosService.getConvidadosPresentesReport(eventoId);
+            
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            
+            const contentDisposition = response.headers['content-disposition'];
+            let fileName = `relatorio_presentes_${evento.value.nome}.pdf`;
+            if (contentDisposition) {
+                const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+                if (fileNameMatch && fileNameMatch.length === 2)
+                    fileName = fileNameMatch[1];
+            }
+
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório.', life: 3000 });
+            console.error("Erro ao baixar relatório de convidados:", error);
+        } finally {
+            downloadingPdf.value.presentes = false;
+        }
+    }
+    else if (tipo === 'crachas') {
+        if (!convidadosSelecionados.value || convidadosSelecionados.value.length === 0) {
+            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione ao menos um convidado para gerar os crachás.', life: 3000 });
+            return;
+        }
+
+        downloadingPdf.value.crachas = true;
+        try {
+            const ids = convidadosSelecionados.value.map(c => c.id);
+            const response = await eventosService.getCrachasReport(eventoId, ids);
+            
+            // Lógica de download (igual à outra)
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `crachas_${evento.value.nome}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar os crachás.', life: 3000 });
+            console.error("Erro ao baixar crachás:", error);
+        } finally {
+            downloadingPdf.value.crachas = false;
+        }
+    }
+    else if (tipo === 'prismas') {
+        if (!convidadosSelecionados.value || convidadosSelecionados.value.length === 0) {
+            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione ao menos um convidado para gerar os prismas.', life: 3000 });
+            return;
+        }
+
+        downloadingPdf.value.prismas = true;
+        try {
+            const ids = convidadosSelecionados.value.map(c => c.id);
+            const response = await eventosService.getPrismasReport(eventoId, ids);
+            
+            // Lógica de download (idêntica às outras)
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `prismas_${evento.value.nome}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar os prismas.', life: 3000 });
+            console.error("Erro ao baixar prismas:", error);
+        } finally {
+            downloadingPdf.value.prismas = false;
+        }
+    }
+};
 
 // --- LÓGICA DE ADICIONAR CONVIDADO ---
 const abrirDialogoAdicionar = () => {
@@ -356,7 +491,7 @@ const abrirDialogoCategoria = async () => {
         categoriaSelecionada.value = null;
         dialogoCategoriaVisivel.value = true;
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.', life: 3000 });
     } finally {
         loadingCategorias.value = false;
     }
@@ -370,7 +505,7 @@ const adicionarPorCategoria = async () => {
         dialogoCategoriaVisivel.value = false;
         carregarDados(); // Atualiza a lista de convidados na tela
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao adicionar convidados.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao adicionar convidados.', life: 3000 });
     }
 };
 
@@ -442,7 +577,7 @@ const buscarCep = async () => {
       }
     } catch (error) { 
         console.error("Erro ao buscar CEP:", error); 
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível consultar o CEP.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível consultar o CEP.', life: 3000 });
     }
   }
 };
@@ -464,17 +599,17 @@ const abrirDialogoNovoMunicipe = async () => {
         dialogoAdicionarVisivel.value = false;
         dialogoNovoMunicipeVisivel.value = true;
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.', life: 3000 });
     }
 };
 
 const validarEPrepararPayload = (dados) => {
     if (!dados.nome_completo || !dados.categoria) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.', life: 3000 });
         return null;
     }
     if (!dados.telefones || dados.telefones.length === 0 || !dados.telefones[0].numero) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.', life: 3000 });
         return null;
     }
     const payload = { ...dados };
@@ -484,7 +619,7 @@ const validarEPrepararPayload = (dados) => {
             if (isNaN(data.getTime())) throw new Error("Data inválida");
             payload.data_nascimento = data.toISOString().split('T')[0];
         } catch (e) {
-            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.' });
+            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.', life: 3000 });
             return null;
         }
     }
@@ -501,7 +636,7 @@ const convidarMunicipe = async (municipe) => {
         dialogoAdicionarVisivel.value = false;
         dialogoNovoMunicipeVisivel.value = false;
         dialogoDuplicatasVisivel.value = false;
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: `"${municipe.nome_completo}" adicionado como convidado!` });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: `"${municipe.nome_completo}" adicionado como convidado!`, life: 3000 });
         carregarDados();
     } catch (error) {
         const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Este munícipe já foi convidado para o evento.';
@@ -515,7 +650,7 @@ const executarSalvamento = async (payload) => {
         // Após criar o munícipe, chama a função para convidá-lo
         await convidarMunicipe(response.data);
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar o novo munícipe.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar o novo munícipe.', life: 3000 });
     }
 };
 
@@ -543,7 +678,7 @@ const salvarNovoMunicipe = async () => {
         }
     } catch (error) {
         console.error("Erro ao verificar duplicatas:", error.response?.data || error);
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.', life: 3000 });
     }
 };
 
@@ -557,6 +692,22 @@ const handleCriarNovoAposVerificacao = () => {
     const payload = validarEPrepararPayload(municipeEmEdicao.value);
     if (!payload) return;
     executarSalvamento(payload);
+};
+
+const togglePresenca = async (convidado) => {
+    // O v-model já atualizou 'convidado.presente' para true ou false
+    const novoStatus = convidado.presente ? 'presente' : 'convidado';
+
+    try {
+        await eventosService.updateConvidadoStatus(convidado.id, novoStatus);
+        // Atualiza o status original no objeto para consistência
+        convidado.status = novoStatus;
+        toast.add({ severity: 'success', summary: 'Status Atualizado', detail: `${convidado.municipe.nome_completo} marcado como ${novoStatus === 'presente' ? 'presente' : 'ausente'}.`, life: 2000 });
+    } catch (error) {
+        // Reverte a mudança visual em caso de erro na API
+        convidado.presente = !convidado.presente;
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar o status.', life: 3000 });
+    }
 };
 
 // --- LÓGICA DE DELETAR CONVIDADO ---
@@ -577,6 +728,23 @@ const deletarConvidado = async (id) => {
         carregarDados(); // Recarrega a lista
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível remover o convidado.', life: 3000 });
+    }
+};
+
+const onRowReorder = async (event) => {
+    // A variável 'convidados' é atualizada automaticamente pelo PrimeVue
+    convidados.value = event.value;
+    
+    // Extrai apenas os IDs na nova ordem
+    const orderedIds = convidados.value.map(convidado => convidado.id);
+    
+    try {
+        await eventosService.reorderConvidados(eventoId, orderedIds);
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Ordem dos convidados salva!', life: 3000 });
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar a nova ordem.', life: 3000 });
+        // Em caso de erro, recarrega os dados para reverter a mudança visual
+        carregarDados();
     }
 };
 

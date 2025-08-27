@@ -61,11 +61,30 @@ export default {
     addConvidado(payload) {
         return apiClient.post('/api/convidados/', payload);
     },
-
+    updateConvidadoStatus(convidadoId, novoStatus) {
+        return apiClient.post(`/api/convidados/${convidadoId}/update-status/`, { status: novoStatus });
+    },
     deleteConvidado(convidadoId) {
         return apiClient.delete(`/api/convidados/${convidadoId}/`);
     },
-
+    reorderConvidados(eventoId, orderedIds) {
+        return apiClient.post(`/api/convidados/reorder/?evento=${eventoId}`, { ordered_ids: orderedIds });
+    },
+    getConvidadosPresentesReport(eventoId) {
+        return apiClient.get(`/api/eventos/${eventoId}/relatorio-convidados-presentes/`, {
+            responseType: 'blob',
+        });
+    },
+    getCrachasReport(eventoId, convidadoIds) {
+        return apiClient.post(`/api/eventos/${eventoId}/relatorio-crachas/`, { convidado_ids: convidadoIds }, {
+            responseType: 'blob',
+        });
+    },
+    getPrismasReport(eventoId, convidadoIds) {
+        return apiClient.post(`/api/eventos/${eventoId}/relatorio-prismas/`, { convidado_ids: convidadoIds }, {
+            responseType: 'blob',
+        });
+    },
     searchMunicipes(query) {
         return apiClient.get(`/api/municipes/lookup/?q=${query}`);
     },
@@ -146,6 +165,12 @@ export default {
         // AJUSTE: A URL agora é na rota de 'comunicacoes'
         return apiClient.post(`/api/comunicacoes/${comunicacaoId}/adicionar-por-categoria/`, { categoria_id: categoriaId });
     },
+    getMailingLists() {
+        return apiClient.get('/api/mailing-lists/');
+    },
+    addDestinatariosPorMailingList(comunicacaoId, mailingListId) {
+        return apiClient.post(`/api/comunicacoes/${comunicacaoId}/adicionar-por-mailing-list/`, { mailing_list_id: mailingListId });
+    },
     getLogsDeEnvio(comunicacaoId) {
         return apiClient.get(`/api/logs-de-envio/?comunicacao=${comunicacaoId}`);
     },
@@ -160,13 +185,79 @@ export default {
         });
     },
     getChecklist(eventoId) {
-        // Assume que o checklist é 1-para-1 com o evento
         return apiClient.get(`/api/checklists/?evento=${eventoId}`);
+    },
+    getMasterChecklistItems() {
+        return apiClient.get('/api/master-checklist-items/');
+    },
+    createMasterChecklistItem(itemData) {
+        return apiClient.post('/api/master-checklist-items/', itemData);
+    },
+    updateMasterChecklistItem(itemId, itemData) {
+        return apiClient.put(`/api/master-checklist-items/${itemId}/`, itemData);
+    },
+    deleteMasterChecklistItem(itemId) {
+        return apiClient.delete(`/api/master-checklist-items/${itemId}/`);
+    },
+    addChecklistItem(itemData) {
+        return apiClient.post('/api/checklist-items/', itemData);
+    },
+    updateChecklistItem(itemId, itemData) {
+        return apiClient.patch(`/api/checklist-items/${itemId}/`, itemData);
+    },
+    deleteChecklistItem(itemId) {
+        return apiClient.delete(`/api/checklist-items/${itemId}/`);
+    },
+    getChecklistReport(checklistId) {
+        return apiClient.get(`/api/checklists/${checklistId}/gerar-relatorio/`, {
+            responseType: 'blob',
+        });
+    },
+    renewChecklistToken(checklistId) {
+        return apiClient.post(`/api/checklists/${checklistId}/renovar-token/`);
+    },
+    getEventosReport(data_inicio, data_fim) {
+        // Formata as datas para o formato AAAA-MM-DD
+        const params = {
+            data_inicio: data_inicio.toISOString().split('T')[0],
+            data_fim: data_fim.toISOString().split('T')[0]
+        };
+        return apiClient.get('/api/eventos/gerar-relatorio-periodo/', {
+            params: params,
+            responseType: 'blob', // Essencial para download
+        });
     },
     getPublicChecklist(token) {
         return apiClient.get(`/api/public/checklist/${token}/`);
     },
     submitChecklist(token, data) {
         return apiClient.post(`/api/public/checklist/${token}/`, data);
+    },
+    getMailingLists() {
+        return apiClient.get('/api/mailing-lists/');
+    },
+    getMailingListDetail(id) {
+        return apiClient.get(`/api/mailing-lists/${id}/`);
+    },
+    createMailingList(data) {
+        return apiClient.post('/api/mailing-lists/', data);
+    },
+    updateMailingList(id, data) {
+        return apiClient.put(`/api/mailing-lists/${id}/`, data);
+    },
+    deleteMailingList(id) {
+        return apiClient.delete(`/api/mailing-lists/${id}/`);
+    },
+    getMunicipesOfMailingList(id) {
+        return apiClient.get(`/api/mailing-lists/${id}/municipes/`);
+    },
+    addMunicipeToMailingList(listId, municipeId) {
+        return apiClient.post(`/api/mailing-lists/${listId}/add-municipe/`, { municipe_id: municipeId });
+    },
+    removeMunicipeFromMailingList(listId, municipeId) {
+        return apiClient.post(`/api/mailing-lists/${listId}/remove-municipe/`, { municipe_id: municipeId });
+    },
+    addMunicipesToMailingListByCategory(listId, categoryId) {
+        return apiClient.post(`/api/mailing-lists/${listId}/add-by-category/`, { categoria_id: categoryId });
     },
 };

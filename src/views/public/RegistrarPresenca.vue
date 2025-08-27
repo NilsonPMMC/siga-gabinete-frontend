@@ -6,6 +6,15 @@
                 <ProgressSpinner />
             </div>
 
+            <div v-else-if="error" class="card">
+                <Message severity="error" :closable="false">{{ error }}</Message>
+            </div>
+            <div v-else-if="success" class="card text-center">
+                <i class="pi pi-check-circle" style="font-size: 3rem; color: var(--green-500);"></i>
+                <h3 class="mt-3">Presença Registrada com Sucesso!</h3>
+                <p>Obrigado pela sua participação.</p>
+            </div>
+
             <div v-else-if="evento.nome">
                 <div class="form-header flex justify-content-between align-items-center mb-5">
                     <img v-if="evento.logo_url" :src="evento.logo_url" alt="Logo" style="height: 50px;" />
@@ -15,6 +24,7 @@
                 <div class="text-center mb-5">
                     <h2 class="mb-1">Registro de Presença</h2>
                     <p class="text-xl font-bold">{{ evento.nome }}</p>
+                    <small>{{ evento.data }}</small>
                 </div>
 
                 <div class="p-fluid">
@@ -73,10 +83,11 @@ const props = defineProps({
 const toast = useToast();
 const loading = ref(true);
 const submitting = ref(false);
+const error = ref(null);
+const success = ref(false);
 const evento = ref({});
 const erro = ref('');
 
-// 👇 ADICIONAMOS OS NOVOS CAMPOS AO OBJETO DO FORMULÁRIO 👇
 const form = ref({
     nome_completo: '',
     data_nascimento: '',
@@ -95,6 +106,7 @@ onMounted(async () => {
         evento.value = {
             id: response.data.evento_id,
             nome: response.data.evento_nome,
+            data: response.data.evento_data,
             logo_url: response.data.logo_url,
             brasao_url: response.data.brasao_url,
         };
@@ -115,10 +127,10 @@ const registrar = async () => {
     try {
         // O objeto 'form.value' agora contém os novos campos e será enviado para a API
         const response = await apiClient.post(`/api/public/check-in/${props.contaId}/`, form.value);
-        toast.add({ severity: 'success', summary: 'Sucesso!', detail: response.data.status, life: 5000 });
-        limparFormulario(); // Limpa o formulário após o sucesso
+        success.value = true;
     } catch (err) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: err.response?.data?.error || 'Não foi possível registrar a presença.' });
+        error.value = 'Não foi possível registrar a presença.';
+        console.error(err);
     } finally {
         submitting.value = false;
     }

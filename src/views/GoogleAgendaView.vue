@@ -56,7 +56,7 @@ onMounted(() => {
 // --- FUNÇÃO PARA GERAR O PDF ---
 const gerarRelatorioPDF = async () => {
     if (!filtroDataRelatorio.value || !filtroDataRelatorio.value[0] || !filtroDataRelatorio.value[1]) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione um período de datas para o relatório.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione um período de datas para o relatório.', life: 3000 });
         return;
     }
     isGeneratingReport.value = true;
@@ -79,7 +79,7 @@ const gerarRelatorioPDF = async () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório em PDF.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório em PDF.', life: 3000 });
     } finally {
         isGeneratingReport.value = false;
     }
@@ -123,11 +123,11 @@ const salvarEvento = async () => {
         if (eventoEmEdicao.value.id) {
             // ATUALIZAR (PATCH)
             await apiClient.patch(`/api/google/calendar/events/${eventoEmEdicao.value.id}/`, payload);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento atualizado!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento atualizado!', life: 3000 });
         } else {
             // CRIAR (POST)
             await apiClient.post('/api/google/calendar/events/create/', payload);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento criado!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento criado!', life: 3000 });
         }
         dialogoEventoVisivel.value = false;
         recarregarEventos(); // Sincroniza o calendário
@@ -146,11 +146,11 @@ const confirmarExclusao = () => {
         accept: async () => {
             try {
                 await apiClient.delete(`/api/google/calendar/events/${eventoEmEdicao.value.id}/`);
-                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento excluído.' });
+                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento excluído.', life: 3000 });
                 dialogoEventoVisivel.value = false;
                 recarregarEventos(); // Sincroniza o calendário
             } catch (error) {
-                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o evento.' });
+                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o evento.', life: 3000 });
             }
         },
     });

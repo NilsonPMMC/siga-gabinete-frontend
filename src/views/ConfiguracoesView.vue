@@ -39,7 +39,7 @@ const iniciarAutorizacaoGoogle = async () => {
       <h1>Configurações do Sistema</h1>
     </header>
     <main>
-      <Card>
+      <Card class="mb-4">
         <template #title>Integração com Google Agenda</template>
         <template #content>
           <p>Para que o sistema possa criar eventos na sua agenda, você precisa autorizar o acesso uma única vez.</p>
@@ -52,6 +52,19 @@ const iniciarAutorizacaoGoogle = async () => {
             @click="iniciarAutorizacaoGoogle" 
           />
 
+        </template>
+      </Card>
+
+      <Card>
+        <template #title>Módulo de Eventos</template>
+        <template #content>
+            <div class="flex align-items-center cursor-pointer" @click="$router.push('/configuracoes/checklist-items')">
+                <i class="pi pi-list text-4xl mr-3 text-primary"></i>
+                <div>
+                    <h4 class="font-bold text-lg mb-0 hover:text-primary">Gerenciar Itens Mestre do Checklist</h4>
+                    <p class="mt-1 mb-0 text-sm">Adicione, edite ou remova itens da lista global de checklist.</p>
+                </div>
+            </div>
         </template>
       </Card>
     </main>

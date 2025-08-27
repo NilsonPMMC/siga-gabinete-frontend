@@ -10,7 +10,7 @@
                 </router-link>
                 <div>
                     <h1 class="mb-0">Gerenciar Comunicação</h1>
-                    <p v-if="!loading" class="mt-1 text-color-secondary">Evento: {{ evento.nome }}</p>
+                    <p v-if="!loading" class="mt-1 text-color-secondary">{{ evento.nome }}</p>
                 </div>
             </div>
         </header>
@@ -56,7 +56,10 @@
                             <Toolbar class="mb-4">
                                 <template #start>
                                     <Button label="Adicionar Destinatário" icon="pi pi-plus" class="p-button-success mr-2" @click="abrirDialogoAdicionar" />
-                                    <Button label="Adicionar por Categoria" icon="pi pi-users" class="p-button-info" @click="abrirDialogoCategoria" />
+                                    <div class="flex gap-2">
+                                        <Button label="Adicionar por Categoria" icon="pi pi-users" class="p-button-info p-button-sm" @click="abrirDialogoCategoria" />
+                                        <Button label="Adicionar por Mailing" icon="pi pi-envelope" class="p-button-secondary p-button-sm" @click="abrirDialogoMailing" />
+                                    </div>
                                 </template>
                             </Toolbar>
                             <DataTable :value="destinatarios" :loading="loading" responsiveLayout="scroll">
@@ -109,6 +112,15 @@
                 <label for="municipe">Munícipe*</label>
                 <div class="p-inputgroup">
                     <AutoComplete id="municipe" v-model="municipeSelecionado" :suggestions="sugestoesMunicipes" @complete="buscarMunicipes" field="nome_completo" placeholder="Digite para buscar..." forceSelection style="width: 100%;">
+                    <template #item="slotProps">
+                        <div class="flex flex-column align-items-start">
+                            <div>{{ slotProps.item.nome_completo }}</div>
+                            <small v-if="slotProps.item.nome_de_guerra" class="text-sm text-primary-500 font-italic">
+                                {{ slotProps.item.nome_de_guerra }}
+                            </small>
+                            <small v-if="slotProps.item.cargo" class="text-sm text-color-secondary">{{ slotProps.item.cargo }}</small>
+                        </div>
+                    </template>
                     </AutoComplete>
                     <Button type="button" icon="pi pi-plus" @click="abrirDialogoNovoMunicipe" title="Adicionar Novo Munícipe" />
                 </div>
@@ -120,13 +132,24 @@
         </Dialog>
 
         <Dialog v-model:visible="dialogoCategoriaVisivel" header="Adicionar por Categoria" :modal="true" :style="{ width: '500px' }">
-             <div class="field">
+            <div class="field">
                 <label for="categoria-dropdown">Selecione a Categoria</label>
                 <Dropdown id="categoria-dropdown" v-model="categoriaSelecionada" :options="categorias" optionLabel="nome" placeholder="Selecione..." class="w-full" :loading="loadingCategorias" />
             </div>
             <template #footer>
                 <Button label="Cancelar" icon="pi pi-times" text @click="dialogoCategoriaVisivel = false" />
                 <Button label="Adicionar" icon="pi pi-check" @click="adicionarPorCategoria" :disabled="!categoriaSelecionada" />
+            </template>
+        </Dialog>
+
+        <Dialog v-model:visible="dialogoMailingVisivel" header="Adicionar por Lista de Mailing" :modal="true" :style="{ width: '500px' }">
+            <div class="field">
+                <label for="mailing-list-dropdown">Selecione a Lista de Mailing</label>
+                <Dropdown id="mailing-list-dropdown" v-model="selectedMailingList" :options="mailingLists" optionLabel="nome" placeholder="Selecione..." class="w-full" :loading="loadingMailings" />
+            </div>
+            <template #footer>
+                <Button label="Cancelar" icon="pi pi-times" text @click="dialogoMailingVisivel = false" />
+                <Button label="Adicionar" icon="pi pi-check" @click="adicionarPorMailingList" :disabled="!selectedMailingList" />
             </template>
         </Dialog>
 
@@ -169,7 +192,7 @@ const toast = useToast();
 const confirm = useConfirm();
 const authStore = useAuthStore();
 
-const comunicacaoId = route.params.id; 
+const comunicacaoId = ref(route.params.id);
 const eventoId = ref(null);
 
 const loading = ref(true);
@@ -182,6 +205,7 @@ const logs = ref([]);
 // --- Refs para os Modals (lógica transplantada) ---
 const dialogoAdicionarVisivel = ref(false);
 const dialogoCategoriaVisivel = ref(false);
+const dialogoMailingVisivel = ref(false);
 
 const municipeSelecionado = ref(null);
 const sugestoesMunicipes = ref([]);
@@ -189,6 +213,9 @@ let searchTimeout = null;
 const categorias = ref([]);
 const categoriaSelecionada = ref(null);
 const loadingCategorias = ref(false);
+const loadingMailings = ref(false);
+const mailingLists = ref([]);
+const selectedMailingList = ref(null);
 
 // --- FUNÇÃO DE CARREGAMENTO PRINCIPAL ---
 // Dentro do <script setup>
@@ -200,15 +227,15 @@ const carregarDados = async () => {
     }
     loading.value = true;
     try {
-        const comunicacaoRes = await eventosService.getComunicacao(comunicacaoId);
+        const comunicacaoRes = await eventosService.getComunicacao(comunicacaoId.value);
         comunicacao.value = comunicacaoRes.data;
         eventoId.value = comunicacao.value.evento.id;        
 
         // Agora busca 3 coisas ao mesmo tempo
         const [eventoRes, destinatariosRes, logsRes] = await Promise.all([
             eventosService.getEvento(eventoId.value),
-            eventosService.getDestinatarios(comunicacaoId),
-            eventosService.getLogsDeEnvio(comunicacaoId)
+            eventosService.getDestinatarios(comunicacaoId.value),
+            eventosService.getLogsDeEnvio(comunicacaoId.value)
         ]);
         
         destinatarios.value = destinatariosRes.data;
@@ -224,7 +251,6 @@ const carregarDados = async () => {
 
 onMounted(carregarDados);
 
-// --- LÓGICA DE ENVIO ---
 const confirmarEnvio = () => {
     confirm.require({
         message: `Você está prestes a enviar esta comunicação para ${destinatarios.value.length} destinatário(s). Esta ação não pode ser desfeita. Deseja continuar?`,
@@ -239,18 +265,16 @@ const confirmarEnvio = () => {
 const enviar = async () => {
     enviando.value = true;
     try {
-        // Precisaremos criar este endpoint no backend
-        const response = await eventosService.enviarComunicacao(comunicacaoId);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.status || 'Comunicação enviada para a fila de processamento!' });
-        carregarDados(); // Recarrega para atualizar status e logs
+        const response = await eventosService.enviarComunicacao(comunicacaoId.value);
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.status || 'Comunicação enviada para a fila de processamento!', life: 3000 });
+        carregarDados();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível iniciar o envio.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível iniciar o envio.', life: 3000 });
     } finally {
         enviando.value = false;
     }
 }
 
-// --- LÓGICA DE GESTÃO DE DESTINATÁRIOS (ADAPTADA DE CONVIDADOS) ---
 const abrirDialogoAdicionar = () => {
     municipeSelecionado.value = null;
     sugestoesMunicipes.value = [];
@@ -271,41 +295,36 @@ const buscarMunicipes = (event) => {
 const adicionarDestinatario = async () => {
     if (!municipeSelecionado.value) return;
 
-    // Validação de e-mail que já implementamos
     if (!municipeSelecionado.value.emails || municipeSelecionado.value.emails.length === 0 || !municipeSelecionado.value.emails[0].email) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Este contato não possui um e-mail cadastrado e não pode ser adicionado.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Este contato não possui um e-mail cadastrado e não pode ser adicionado.', life: 3000 });
         return;
     }
 
     try {
-        // --- AQUI ESTÁ A CORREÇÃO PRINCIPAL ---
-        // O payload agora envia o 'comunicacaoId' (que vem da URL) em vez do 'eventoId'.
         const payload = {
-            comunicacao: comunicacaoId, 
+            comunicacao: comunicacaoId.value, 
             municipe_id: municipeSelecionado.value.id
         };
-        // ------------------------------------
-
         await eventosService.addDestinatario(payload);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Destinatário adicionado!' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Destinatário adicionado!', life: 3000 });
         dialogoAdicionarVisivel.value = false;
-        carregarDados(); // Recarrega a lista de destinatários
+        carregarDados();
     } catch (error) {
         const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Este contato já está na lista.';
-        toast.add({ severity: 'error', summary: 'Erro', detail: errorMsg });
+        toast.add({ severity: 'error', summary: 'Erro', detail: errorMsg, life: 3000 });
     }
 };
 
-// Adicionar por Categoria
 const abrirDialogoCategoria = async () => {
     loadingCategorias.value = true;
+    dialogoCategoriaVisivel.value = true;
     try {
         const response = await eventosService.getCategorias();
         categorias.value = Array.isArray(response.data) ? response.data : response.data.results;
         categoriaSelecionada.value = null;
-        dialogoCategoriaVisivel.value = true;
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.', life: 3000 });
+        dialogoCategoriaVisivel.value = false;
     } finally {
         loadingCategorias.value = false;
     }
@@ -314,14 +333,40 @@ const abrirDialogoCategoria = async () => {
 const adicionarPorCategoria = async () => {
     if (!categoriaSelecionada.value) return;
     try {
-        // AJUSTE: Passamos o 'comunicacaoId' em vez do 'eventoId'
-        const response = await eventosService.addDestinatariosPorCategoria(comunicacaoId, categoriaSelecionada.value.id);
-        
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.status });
+        const response = await eventosService.addDestinatariosPorCategoria(comunicacaoId.value, categoriaSelecionada.value.id);
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.status, life: 3000 });
         dialogoCategoriaVisivel.value = false;
         carregarDados();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao adicionar destinatários.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao adicionar destinatários.', life: 3000 });
+    }
+};
+
+const abrirDialogoMailing = async () => {
+    loadingMailings.value = true;
+    dialogoMailingVisivel.value = true;
+    try {
+        const response = await eventosService.getMailingLists();
+        mailingLists.value = response.data;
+        selectedMailingList.value = null;
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as listas de mailing.', life: 3000 });
+        dialogoMailingVisivel.value = false;
+    } finally {
+        loadingMailings.value = false;
+    }
+};
+
+const adicionarPorMailingList = async () => {
+    if (!selectedMailingList.value) return;
+    try {
+        const response = await eventosService.addDestinatariosPorMailingList(comunicacaoId.value, selectedMailingList.value.id);
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.status, life: 4000 });
+        dialogoMailingVisivel.value = false;
+        await carregarDados(); // Alterado para carregar todos os dados para consistência
+    } catch (error) {
+        const errorMsg = error.response?.data?.error || 'Não foi possível adicionar os contatos da lista.';
+        toast.add({ severity: 'error', summary: 'Erro', detail: errorMsg, life: 3000 });
     }
 };
 
@@ -332,13 +377,14 @@ const confirmarDeleteDestinatario = (destinatario) => {
         accept: () => deletarDestinatario(destinatario.id),
     });
 };
+
 const deletarDestinatario = async (id) => {
     try {
         await eventosService.deleteDestinatario(id);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Destinatário removido.' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Destinatário removido.', life: 3000 });
         carregarDados();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível remover.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível remover.', life: 3000 });
     }
 };
 

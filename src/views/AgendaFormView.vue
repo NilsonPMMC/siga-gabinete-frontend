@@ -128,7 +128,7 @@ const salvarAgenda = async () => {
     toast.add({ severity: 'success', summary: 'Sucesso', detail: `Solicitação de agenda ${isEditMode.value ? 'atualizada' : 'criada'}!`, life: 3000 });
     router.push('/agendas');
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar a solicitação.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar a solicitação.', life: 3000 });
   } finally {
     isLoading.value = false;
   }
@@ -285,12 +285,12 @@ const extractApiError = (error) => {
 const validarEPrepararPayload = (dados) => {
     // 1. Validação de campos obrigatórios (continua igual)
     if (!dados.nome_completo || !dados.categoria) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.', life: 3000 });
         return null;
     }
 
     if (!dados.telefones || dados.telefones.length === 0 || !dados.telefones[0].numero) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.', life: 3000 });
         return null;
     }
 
@@ -306,7 +306,7 @@ const validarEPrepararPayload = (dados) => {
             const dia = data.getDate().toString().padStart(2, '0');
             payload.data_nascimento = `${ano}-${mes}-${dia}`;
         } catch (e) {
-            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.' });
+            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.', life: 3000 });
             return null;
         }
     }
@@ -347,7 +347,7 @@ const executarSalvamento = async (payload) => {
         const { data } = payload.id
             ? await apiClient.patch(`/api/municipes/${payload.id}/`, payload)
             : await apiClient.post('/api/municipes/', payload);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: payload.id ? 'Contato atualizado!' : 'Contato criado!' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: payload.id ? 'Contato atualizado!' : 'Contato criado!', life: 3000 });
         finalizarCadastroMunicipe(data);
     } catch (error) {
         const errorMsg = extractApiError(error);
@@ -379,7 +379,7 @@ const salvarMunicipe = async () => {
             await executarSalvamento(payload);
         }
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.', life: 3000 });
     }
 };
 

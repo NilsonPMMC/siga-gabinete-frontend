@@ -82,15 +82,15 @@ const salvarEspaco = async () => {
   try {
     if (isEditMode.value) {
       await apiClient.put(`/api/espacos/${espacoEmEdicao.value.id}/`, espacoEmEdicao.value);
-      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço atualizado!' });
+      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço atualizado!', life: 3000 });
     } else {
       await apiClient.post('/api/espacos/', espacoEmEdicao.value);
-      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço criado!' });
+      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço criado!', life: 3000 });
     }
     dialogoCrudVisivel.value = false;
     fetchEspacos();
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar o espaço.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar o espaço.', life: 3000 });
   }
 };
 
@@ -105,10 +105,10 @@ const confirmarExclusao = (espaco) => {
     accept: async () => {
       try {
         await apiClient.delete(`/api/espacos/${espaco.id}/`);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço excluído.' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço excluído.', life: 3000 });
         fetchEspacos();
       } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o espaço.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o espaço.', life: 3000 });
       }
     },
   });
@@ -157,11 +157,11 @@ const salvarReserva = async () => {
 
     // 1. Validação dos campos do formulário (mantida como no seu código)
     if (!assunto || !espaco || !data_agendada || !data_agendada_fim) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Assunto, Espaço, Início e Fim são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Assunto, Espaço, Início e Fim são obrigatórios.', life: 3000 });
         return;
     }
     if (new Date(data_agendada_fim) <= new Date(data_agendada)) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.', life: 3000 });
         return;
     }
     
@@ -179,7 +179,7 @@ const salvarReserva = async () => {
         // 3. Envio para a URL CORRETA da API de reservas
         await apiClient.post('/api/reservas-espaco/', payload);
         
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço reservado com sucesso!' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço reservado com sucesso!', life: 3000 });
         dialogoReservaVisivel.value = false;
         // Se houver uma função para atualizar a agenda do espaço, chame-a aqui.
         // ex: fetchEventosDoEspaco();

@@ -182,11 +182,11 @@ const salvarReserva = async () => {
 
     // Validações
     if (!payloadOriginal.titulo || !payloadOriginal.data_inicio || !payloadOriginal.data_fim) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Assunto, Início e Término são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Assunto, Início e Término são obrigatórios.', life: 3000 });
         return;
     }
     if (new Date(payloadOriginal.data_fim) <= new Date(payloadOriginal.data_inicio)) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.', life: 3000 });
         return;
     }
     
@@ -204,10 +204,10 @@ const salvarReserva = async () => {
     try {
         if (payloadFinal.id) { // Edição
             await apiClient.put(`/api/reservas-espaco/${payloadFinal.id}/`, payloadFinal);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Reserva atualizada com sucesso!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Reserva atualizada com sucesso!', life: 3000 });
         } else { // Criação
             await apiClient.post('/api/reservas-espaco/', payloadFinal);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço reservado com sucesso!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Espaço reservado com sucesso!', life: 3000 });
         }
         dialogoEventoVisivel.value = false;
         fetchAgendaData(); // <-- Esta linha é a que atualiza o calendário!
@@ -228,11 +228,11 @@ const confirmarExclusao = () => {
             try {
                 const idParaExcluir = reserva.id || clickInfo.event.extendedProps.id;
                 await apiClient.delete(`/api/reservas-espaco/${idParaExcluir}/`);
-                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Reserva excluída.' });
+                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Reserva excluída.', life: 3000 });
                 dialogoEventoVisivel.value = false;
                 fetchAgendaData();
             } catch (error) {
-                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir a reserva.' });
+                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir a reserva.', life: 3000 });
             }
         },
     });

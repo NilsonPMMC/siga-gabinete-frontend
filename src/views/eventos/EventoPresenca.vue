@@ -8,7 +8,7 @@
                 </router-link>
                 <div>
                     <h1 class="mb-0">Lista de Presença</h1>
-                    <p v-if="!loading" class="mt-1 text-color-secondary">Evento: {{ evento.nome }}</p>
+                    <p v-if="!loading" class="mt-1 text-color-secondary">{{ evento.nome }}</p>
                 </div>
             </div>
         </header>
@@ -137,7 +137,7 @@ const exportar = async () => {
         link.click();
         document.body.removeChild(link);
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar a planilha.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar a planilha.', life: 3000 });
     } finally {
         exportando.value = false;
     }

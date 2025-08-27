@@ -9,8 +9,8 @@
                     <Button icon="pi pi-arrow-left" severity="secondary" text rounded />
                 </router-link>
                 <div v-if="!loading" class="ml-2">
-                    <h1 class="mb-0">{{ evento.nome }}</h1>
-                    <p class="mt-1 text-color-secondary">Comunicações do Evento</p>
+                    <h1 class="mb-0">Comunicações do Evento</h1>
+                    <p class="mt-1 text-color-secondary">{{ evento.nome }}</p>
                 </div>
             </div>
             <div class="flex align-items-center gap-3">
@@ -223,12 +223,12 @@ const salvarComunicacao = async () => {
         } else {
             // Enviamos o objeto completo, incluindo as flags de remoção
             await eventosService.updateComunicacao(comunicacaoEmEdicao.value.id, comunicacaoEmEdicao.value);
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Comunicação atualizada!' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Comunicação atualizada!', life: 3000 });
         }
         dialogoVisivel.value = false;
         carregarDados();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar a comunicação.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar a comunicação.', life: 3000 });
     }
 };
 
@@ -245,10 +245,10 @@ const confirmarDelete = (comunicacao) => {
 const deletarComunicacao = async (id) => {
     try {
         await eventosService.deleteComunicacao(id);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Comunicação deletada.' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Comunicação deletada.', life: 3000 });
         carregarDados();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível deletar.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível deletar.', life: 3000 });
     }
 };
 </script>

@@ -56,11 +56,11 @@ const salvarAlteracoes = async (novoStatus) => {
     // Se o status for 'AGENDADO', valida e inclui as datas
     if (novoStatus === 'AGENDADO') {
         if (!dataAgendada.value || !dataAgendadaFim.value) {
-            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione o horário de início e término.' });
+            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione o horário de início e término.', life: 3000 });
             return;
         }
         if (new Date(dataAgendadaFim.value) <= new Date(dataAgendada.value)) {
-            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.' });
+            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.', life: 3000 });
             return;
         }
         payload.data_agendada = new Date(dataAgendada.value).toISOString();
@@ -94,7 +94,7 @@ const salvarAlteracoes = async (novoStatus) => {
             todasSolicitacoes.value[solicitacoes.value.findIndex(s => s.id === solicitacaoId)] = response.data;
         }
 
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: `Solicitação atualizada.` });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: `Solicitação atualizada.`, life: 3000 });
         dialogoVisivel.value = false;
 
     } catch (error) {
@@ -231,9 +231,9 @@ const removerLinkGoogle = (solicitacao) => {
                 if (index !== -1) {
                     solicitacoes.value[index] = response.data;
                 }
-                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento desvinculado.' });
+                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Evento desvinculado.', life: 3000 });
             } catch (error) {
-                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível desvincular o evento.' });
+                toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível desvincular o evento.', life: 3000 });
             }
         },
     });

@@ -48,6 +48,12 @@ const model = ref([
                 icon: 'pi pi-fw pi-users', 
                 to: '/contatos' 
             },
+            { 
+                label: 'Mailing', 
+                icon: 'pi pi-fw pi-envelope', 
+                to: '/mailings',
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+            },
         ]
     },
     {

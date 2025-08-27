@@ -62,7 +62,7 @@ const salvarAlteracoes = async (novoStatus) => {
 
   if (novoStatus === 'AGENDADO') {
     if (!dataAgendada.value) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione uma data para agendar.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione uma data para agendar.', life: 3000 });
         return;
     }
     payload.data_agendada = new Date(dataAgendada.value).toISOString();
@@ -75,10 +75,10 @@ const salvarAlteracoes = async (novoStatus) => {
       todasSolicitacoes.value[index] = response.data;
       solicitacoesNaTela.value[index] = response.data;
     }
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Solicitação atualizada.' });
+    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Solicitação atualizada.', life: 3000 });
     dialogoVisivel.value = false;
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar a solicitação.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar a solicitação.', life: 3000 });
   }
 };
 // --- FIM DA LÓGICA DO MODAL ---
@@ -91,7 +91,7 @@ const buscarDados = async () => {
     todasSolicitacoes.value = response.data;
     solicitacoesNaTela.value = response.data; // Popula a tabela
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os dados.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os dados.', life: 3000 });
   } finally {
     isLoading.value = false;
   }

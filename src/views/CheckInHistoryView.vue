@@ -65,7 +65,7 @@ const abrirDialogoEdicao = (visita) => {
 
 const salvarVisita = async () => {
     if (!visitaEmEdicao.value.municipe || !visitaEmEdicao.value.conta_destino) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Visitante e Destino são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Visitante e Destino são obrigatórios.', life: 3000 });
         return;
     }
     isSaving.value = true;
@@ -76,11 +76,11 @@ const salvarVisita = async () => {
             observacao: visitaEmEdicao.value.observacao,
         };
         await apiClient.patch(`/api/checkins/${visitaEmEdicao.value.id}/`, payload);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro atualizado!' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro atualizado!', life: 3000 });
         dialogoVisivel.value = false;
         carregarVisitas();
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar o registro.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar o registro.', life: 3000 });
     } finally {
         isSaving.value = false;
     }
@@ -95,10 +95,10 @@ const confirmarExclusao = (visita) => {
         accept: async () => {
             try {
                 await apiClient.delete(`/api/checkins/${visita.id}/`);
-                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro excluído.' });
+                toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro excluído.', life: 3000 });
                 carregarVisitas();
             } catch (error) {
-                toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir o registro.' });
+                toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir o registro.', life: 3000 });
             }
         },
     });
@@ -109,7 +109,7 @@ const tituloDialogo = computed(() => visitaEmEdicao.value.id ? 'Editar Registro 
 const gerarRelatorioCheckinsPDF = async () => {
     // Reutiliza o filtro de data que já existe na tela
     if (!filtroData.value || !filtroData.value[0] || !filtroData.value[1]) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione um período de datas para gerar o relatório.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione um período de datas para gerar o relatório.', life: 3000 });
         return;
     }
     isGeneratingReport.value = true;
@@ -134,7 +134,7 @@ const gerarRelatorioCheckinsPDF = async () => {
         window.URL.revokeObjectURL(url);
 
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório de check-ins.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório de check-ins.', life: 3000 });
     } finally {
         isGeneratingReport.value = false;
     }

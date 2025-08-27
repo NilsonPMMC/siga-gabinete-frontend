@@ -49,7 +49,12 @@ const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
-app.use(PrimeVue, { ripple: true });
+app.use(PrimeVue, { 
+    toast: {
+        life: 3000,
+    },
+    ripple: true, 
+});
 app.use(ConfirmationService);
 app.use(ToastService);
 

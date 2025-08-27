@@ -16,6 +16,7 @@
     "@fullcalendar/vue3": "^6.1.18",
     "axios": "^1.7.2",
     "chart.js": "^4.5.0",
+    "date-fns": "^4.1.0",
     "jwt-decode": "^4.0.0",
     "pinia": "^2.1.7",
     "primeflex": "^4.0.0",

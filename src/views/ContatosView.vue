@@ -147,7 +147,7 @@ const abrirModalGestaoDuplicatas = async (grupo_id) => {
         dialogoGestaoVisivel.value = true;
 
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar o grupo de duplicatas.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar o grupo de duplicatas.', life: 3000 });
     } finally {
         isLoading.value = false; // Esconde o loading
     }
@@ -155,7 +155,7 @@ const abrirModalGestaoDuplicatas = async (grupo_id) => {
 
 const confirmarDelecaoDeDuplicatas = () => {
     if (registrosParaDeletar.value.length === 0 || registrosParaDeletar.value.length >= grupoDuplicadoAtual.value.length) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione os registros para deletar, mas preserve ao menos um.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione os registros para deletar, mas preserve ao menos um.', life: 3000 });
         return;
     }
     
@@ -169,10 +169,10 @@ const confirmarDelecaoDeDuplicatas = () => {
                 try {
                     await apiClient.delete(`/api/municipes/${registro.id}/`);
                 } catch (error) {
-                    toast.add({ severity: 'error', summary: 'Erro', detail: `Falha ao deletar o registro de ${registro.nome_completo}.` });
+                    toast.add({ severity: 'error', summary: 'Erro', detail: `Falha ao deletar o registro de ${registro.nome_completo}.`, life: 3000 });
                 }
             }
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registros duplicados foram removidos.' });
+            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registros duplicados foram removidos.', life: 3000 });
             dialogoGestaoVisivel.value = false;
             carregarDadosIniciais();
         },
@@ -250,12 +250,12 @@ const extractApiError = (error) => {
 const validarEPrepararPayload = (dados) => {
     // 1. Validação de campos obrigatórios (continua igual)
     if (!dados.nome_completo || !dados.categoria) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.', life: 3000 });
         return null;
     }
 
     if (!dados.telefones || dados.telefones.length === 0 || !dados.telefones[0].numero) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.' });
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'É necessário preencher pelo menos um telefone.', life: 3000 });
         return null;
     }
 
@@ -271,7 +271,7 @@ const validarEPrepararPayload = (dados) => {
             const dia = data.getDate().toString().padStart(2, '0');
             payload.data_nascimento = `${ano}-${mes}-${dia}`;
         } catch (e) {
-            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.' });
+            toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.', life: 3000 });
             return null;
         }
     }
@@ -312,7 +312,7 @@ const executarSalvamento = async (payload) => {
         const { data } = payload.id
             ? await apiClient.patch(`/api/municipes/${payload.id}/`, payload)
             : await apiClient.post('/api/municipes/', payload);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: payload.id ? 'Contato atualizado!' : 'Contato criado!' });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: payload.id ? 'Contato atualizado!' : 'Contato criado!', life: 3000 });
         finalizarCadastro(data);
     } catch (error) {
         const errorMsg = extractApiError(error);
@@ -344,7 +344,7 @@ const salvarMunicipe = async () => {
             await executarSalvamento(payload);
         }
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao verificar duplicatas.', life: 3000 });
     }
 };
 
@@ -442,7 +442,7 @@ const confirmarExclusaoContato = (contato) => {
 
         toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato excluído permanentemente.', life: 3000 });
       } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o contato.' });
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o contato.', life: 3000 });
       }
     },
   });
@@ -473,7 +473,7 @@ const exportarExcel = async () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar a planilha.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar a planilha.', life: 3000 });
   } finally {
     isExporting.value = false;
   }
