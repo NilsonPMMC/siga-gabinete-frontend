@@ -22,20 +22,14 @@ const filtroTexto = ref('');
 const filtroLetra = ref('');
 const alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 
-const filtroApenasDuplicatas = ref(false);
-const grupoDuplicadoAtual = ref([]);
-const registrosParaDeletar = ref([]);
-
 const aniversariantes = ref([]);
 const categoriasContato = ref([]);
 const contas = ref([]);
 
 const dialogoAniversariantesVisivel = ref(false);
-const dialogoVisivel = ref(false); // Este diálogo será usado para CRIAR e EDITAR
-const dialogoGestaoVisivel = ref(false);
+const dialogoVisivel = ref(false);
 const municipeEmEdicao = ref({});
 
-// --- ESTADO PARA A LÓGICA DE DUPLICATAS ---
 const dialogoDuplicatasVisivel = ref(false);
 const contatosEncontrados = ref([]);
 
@@ -53,7 +47,7 @@ const carregarDadosIniciais = async () => {
     isLoading.value = true;
     try {
         const [municipesRes, categoriasRes, aniversariantesRes, contasRes] = await Promise.all([
-            apiClient.get('/api/municipes/'), // Carrega a lista inicial (os 100 mais recentes)
+            apiClient.get('/api/municipes/'),
             apiClient.get('/api/contatos/categorias/'),
             apiClient.get('/api/municipes/aniversariantes-do-dia/'),
             apiClient.get('/api/contas/')
@@ -79,12 +73,10 @@ const tiposDeEmail = ref([
 ]);
 
 const adicionarEmail = () => {
-    // Adiciona um novo objeto de email ao array
     municipeEmEdicao.value.emails.push({ tipo: 'pessoal', email: '' });
 };
 
 const removerEmail = (index) => {
-    // Remove um email, garantindo que pelo menos um campo permaneça
     if (municipeEmEdicao.value.emails.length > 1) {
         municipeEmEdicao.value.emails.splice(index, 1);
     } else {
@@ -100,12 +92,10 @@ const tiposDeTelefone = ref([
 ]);
 
 const adicionarTelefone = () => {
-    // Adiciona um novo objeto de telefone ao array
     municipeEmEdicao.value.telefones.push({ tipo: 'celular', numero: '' });
 };
 
 const removerTelefone = (index) => {
-    // Remove um telefone, garantindo que pelo menos um campo permaneça
     if (municipeEmEdicao.value.telefones.length > 1) {
         municipeEmEdicao.value.telefones.splice(index, 1);
     } else {
@@ -116,11 +106,8 @@ const removerTelefone = (index) => {
 const formatarTelefone = (index) => {
     const telefones = municipeEmEdicao.value.telefones;
     if (!telefones[index] || !telefones[index].numero) return;
-
-    // Limpa tudo que não for número
     const numerosLimpos = telefones[index].numero.replace(/\D/g, '');
     
-    // Aplica a máscara correta baseada no tamanho
     if (numerosLimpos.length === 11) {
         telefones[index].numero = `(${numerosLimpos.substring(0, 2)}) ${numerosLimpos.substring(2, 7)}-${numerosLimpos.substring(7)}`;
     } else if (numerosLimpos.length === 10) {
@@ -129,57 +116,6 @@ const formatarTelefone = (index) => {
         telefones[index].numero = numerosLimpos;
     }
 };
-
-// --- NOVAS FUNÇÕES PARA GERENCIAR DUPLICATAS ---
-const abrirModalGestaoDuplicatas = async (grupo_id) => {
-    if (!grupo_id) return;
-    isLoading.value = true; // Mostra um loading enquanto busca
-    try {
-        // A MÁGICA ACONTECE AQUI:
-        // Faz uma chamada à API pedindo especificamente os contatos do grupo
-        const response = await apiClient.get('/api/municipes/', {
-            params: { grupo: grupo_id }
-        });
-        
-        // Popula a variável do modal com a resposta completa do backend
-        grupoDuplicadoAtual.value = response.data;
-        registrosParaDeletar.value = [];
-        dialogoGestaoVisivel.value = true;
-
-    } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar o grupo de duplicatas.', life: 3000 });
-    } finally {
-        isLoading.value = false; // Esconde o loading
-    }
-};
-
-const confirmarDelecaoDeDuplicatas = () => {
-    if (registrosParaDeletar.value.length === 0 || registrosParaDeletar.value.length >= grupoDuplicadoAtual.value.length) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione os registros para deletar, mas preserve ao menos um.', life: 3000 });
-        return;
-    }
-    
-    confirm.require({
-        message: `Você tem certeza que deseja deletar ${registrosParaDeletar.value.length} registro(s)? Esta ação não pode ser desfeita.`,
-        header: 'Confirmar Exclusão',
-        icon: 'pi pi-exclamation-triangle',
-        acceptClassName: 'p-button-danger',
-        accept: async () => {
-            for (const registro of registrosParaDeletar.value) {
-                try {
-                    await apiClient.delete(`/api/municipes/${registro.id}/`);
-                } catch (error) {
-                    toast.add({ severity: 'error', summary: 'Erro', detail: `Falha ao deletar o registro de ${registro.nome_completo}.`, life: 3000 });
-                }
-            }
-            toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registros duplicados foram removidos.', life: 3000 });
-            dialogoGestaoVisivel.value = false;
-            carregarDadosIniciais();
-        },
-    });
-};
-
-// --- LÓGICA DE CADASTRO INTELIGENTE (TRANSPLANTADA E ADAPTADA) ---
 
 const abrirDialogoParaCriacao = () => {
     const categoriaDefault = categoriasContato.value.find(c => c.nome.toLowerCase() === 'munícipe');
@@ -201,8 +137,8 @@ const abrirDialogoParaEdicao = (municipe) => {
     ...municipe,
     contas: municipe.contas ? municipe.contas.map(c => c.id) : [],
     categoria: municipe.categoria, 
-    telefones: (municipe.telefones && municipe.telefones.length > 0) ? municipe.telefones : [{ tipo: 'principal', numero: '' }],
-    emails: (municipe.emails && municipe.emails.length > 0) ? municipe.emails : [{ tipo: 'principal', email: '' }],
+    telefones: (municipe.telefones && municipe.telefones.length > 0) ? JSON.parse(JSON.stringify(municipe.telefones)) : [{ tipo: 'principal', numero: '' }],
+    emails: (municipe.emails && municipe.emails.length > 0) ? JSON.parse(JSON.stringify(municipe.emails)) : [{ tipo: 'principal', email: '' }],
     cep: municipe.endereco?.cep || '',
     logradouro: municipe.endereco?.logradouro || '',
     bairro: municipe.endereco?.bairro || '',
@@ -226,13 +162,11 @@ const buscarCep = async () => {
 const finalizarCadastro = (contatoSalvo) => {
     const index = todosMunicipes.value.findIndex(m => m.id === contatoSalvo.id);
     if (index !== -1) {
-        // Atualiza o contato na lista principal e na lista da tela
         todosMunicipes.value[index] = contatoSalvo;
     } else {
-        // Adiciona o novo contato no início de ambas as listas
         todosMunicipes.value.unshift(contatoSalvo);
     }
-    aplicarFiltros(); // Re-aplica os filtros para a tela ser atualizada
+    aplicarFiltros();
     dialogoVisivel.value = false;
     dialogoDuplicatasVisivel.value = false;
 };
@@ -248,7 +182,6 @@ const extractApiError = (error) => {
 };
 
 const validarEPrepararPayload = (dados) => {
-    // 1. Validação de campos obrigatórios (continua igual)
     if (!dados.nome_completo || !dados.categoria) {
         toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome Completo e Categoria são obrigatórios.', life: 3000 });
         return null;
@@ -261,35 +194,17 @@ const validarEPrepararPayload = (dados) => {
 
     const payload = { ...dados };
 
-    // 2. Formatação de data (continua igual)
     if (payload.data_nascimento) {
         try {
             const data = new Date(payload.data_nascimento);
             if (isNaN(data.getTime())) throw new Error("Data inválida");
-            const ano = data.getFullYear();
-            const mes = (data.getMonth() + 1).toString().padStart(2, '0');
-            const dia = data.getDate().toString().padStart(2, '0');
-            payload.data_nascimento = `${ano}-${mes}-${dia}`;
+            payload.data_nascimento = data.toISOString().split('T')[0];
         } catch (e) {
             toast.add({ severity: 'error', summary: 'Erro de Formato', detail: 'A data de nascimento é inválida.', life: 3000 });
             return null;
         }
     }
-
-    // --- LÓGICA DE PRESERVAÇÃO DE DADOS (CORRIGIDA) ---
-
-    // 3. Tratamento de telefone: só cria/atualiza o objeto `telefones`
-    // se o campo `telefone` do formulário tiver algum valor.
-    if (payload.telefone) {
-        payload.telefones = [{ tipo: 'principal', numero: payload.telefone }];
-    } 
-    // Se o usuário APAGOU o telefone, o campo existe mas está vazio
-    else if (payload.hasOwnProperty('telefone') && !payload.telefone) {
-        payload.telefones = [];
-    }
-
-    // 4. Tratamento de endereço: só cria/atualiza o objeto `endereco`
-    // se PELO MENOS UM dos campos de endereço tiver algum valor.
+    
     if (payload.cep || payload.logradouro || payload.bairro) {
         payload.endereco = { 
             cep: payload.cep || '', 
@@ -298,8 +213,6 @@ const validarEPrepararPayload = (dados) => {
         };
     }
 
-    // 5. Limpeza dos campos temporários
-    delete payload.telefone;
     delete payload.cep;
     delete payload.logradouro;
     delete payload.bairro;
@@ -332,8 +245,8 @@ const salvarMunicipe = async () => {
         const params = { 
             nome_completo: payload.nome_completo, 
             cpf: payload.cpf, 
-            email: payload.email,
-            // Envia a lista de contas para a API (o backend precisa saber como lidar com múltiplos IDs)
+            email: payload.emails[0]?.email,
+            telefone: payload.telefones[0]?.numero,
             conta_id: contasUsuario.join(',') 
         };
         const { data } = await apiClient.get('/api/municipes/check-duplicates/', { params });
@@ -367,18 +280,12 @@ const handleCriarNovoContato = async () => {
     await executarSalvamento(payload);
 };
 
-
-// --- FUNÇÕES DE FILTRO E AÇÕES DA PÁGINA ---
-
 const aplicarFiltros = async () => {
   isLoading.value = true;
   try {
-    // 1. Prepara os parâmetros da busca
     const params = {
       q: filtroTexto.value,
       letra: filtroLetra.value,
-      // 2. A MÁGICA: Adiciona o novo filtro se ele estiver ativo
-      duplicatas: filtroApenasDuplicatas.value ? 'true' : 'false',
     };
     
     const response = await apiClient.get('/api/municipes/', { params });
@@ -391,21 +298,9 @@ const aplicarFiltros = async () => {
 };
 
 const limparFiltros = async () => {
-  // 1. Limpa TODOS os estados de filtro
   filtroTexto.value = '';
   filtroLetra.value = '';
-  filtroApenasDuplicatas.value = false; // <<< ADICIONADO
-  
-  // 2. Recarrega a lista inicial (os 100 mais recentes)
-  isLoading.value = true;
-  try {
-    const response = await apiClient.get('/api/municipes/');
-    municipesNaTela.value = response.data;
-  } catch (error) { 
-    console.error("Erro ao limpar filtro:", error); 
-  } finally { 
-    isLoading.value = false; 
-  }
+  await carregarDadosIniciais();
 };
 
 const filtrarPorLetra = async (letra) => {
@@ -415,17 +310,12 @@ const filtrarPorLetra = async (letra) => {
   } else {
     filtroLetra.value = letra;
   }
-  isLoading.value = true;
-  try {
-    const response = await apiClient.get('/api/municipes/', { params: { letra: filtroLetra.value } });
-    municipesNaTela.value = response.data;
-  } catch (error) { console.error("Erro ao filtrar por letra:", error); } 
-  finally { isLoading.value = false; }
+  await aplicarFiltros();
 };
 
 const confirmarExclusaoContato = (contato) => {
   confirm.require({
-    message: `Você tem certeza que deseja excluir o contato "${contato.nome_completo}"? Esta ação não pode ser desfeita e irá remover permanentemente o registro.`,
+    message: `Você tem certeza que deseja excluir o contato "${contato.nome_completo}"? Esta ação não pode ser desfeita.`,
     header: 'Confirmar Exclusão',
     icon: 'pi pi-exclamation-triangle',
     acceptClassName: 'p-button-danger',
@@ -433,14 +323,10 @@ const confirmarExclusaoContato = (contato) => {
     rejectLabel: 'Cancelar',
     accept: async () => {
       try {
-        // Chama a API para deletar o munícipe
         await apiClient.delete(`/api/municipes/${contato.id}/`);
-        
-        // Remove o contato das listas locais para atualizar a tela sem recarregar
         todosMunicipes.value = todosMunicipes.value.filter(m => m.id !== contato.id);
         municipesNaTela.value = municipesNaTela.value.filter(m => m.id !== contato.id);
-
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato excluído permanentemente.', life: 3000 });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato excluído.', life: 3000 });
       } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o contato.', life: 3000 });
       }
@@ -508,9 +394,6 @@ const exportarExcel = async () => {
             <label for="filtroTexto">Buscar por Nome, CPF, Email, Cargo ou Órgão</label>
             <InputText id="filtroTexto" v-model="filtroTexto" @keyup.enter="aplicarFiltros" placeholder="Digite para buscar..." />
           </div>
-          <div class="field col-fixed flex align-items-center mt-4">
-            <ToggleButton v-model="filtroApenasDuplicatas" onLabel="Mostrando Duplicatas" offLabel="Mostrar Apenas Duplicatas" onIcon="pi pi-users" offIcon="pi pi-users"/>
-          </div>
           <div class="field col-fixed flex gap-2">
             <Button label="Buscar" icon="pi pi-search" @click="aplicarFiltros" :loading="isLoading" />
             <Button label="Limpar" icon="pi pi-times" @click="limparFiltros" class="p-button-secondary" />
@@ -548,10 +431,9 @@ const exportarExcel = async () => {
         </Column>
         <Column field="categoria_nome" header="Categoria" sortable></Column>
         <Column field="cargo" header="Cargo" sortable></Column>
-        <Column field="orgao" header="Órgão/Empresa" sortable></Column>
         <Column field="emails" header="Email Principal" :sortable="false">
             <template #body="slotProps">
-                <div class="flex align-items-center gap-2" v-if="slotProps.data.emails && slotProps.data.emails.length > 0">
+                <div class="flex align-items-center gap-2" v-if="slotProps.data.emails && slotProps.data.emails.length > 0 && slotProps.data.emails[0].email">
                     <span>{{ slotProps.data.emails[0].email }}</span>
                     <Button icon="pi pi-copy" text rounded size="small" @click="copiarTexto(slotProps.data.emails[0].email)" title="Copiar Email" />
                 </div>
@@ -560,24 +442,10 @@ const exportarExcel = async () => {
 
         <Column header="Telefone">
           <template #body="slotProps">
-            <div class="flex align-items-center gap-2" v-if="slotProps.data.telefones && slotProps.data.telefones[0]">
+            <div class="flex align-items-center gap-2" v-if="slotProps.data.telefones && slotProps.data.telefones[0] && slotProps.data.telefones[0].numero">
               <span>{{ slotProps.data.telefones[0]?.numero }}</span>
               <Button icon="pi pi-copy" text rounded size="small" @click="copiarTexto(slotProps.data.telefones[0]?.numero)" title="Copiar Telefone" />
             </div>
-          </template>
-        </Column>
-
-        <Column header="Status" style="width: 5rem; text-align: center;">
-          <template #body="slotProps">
-            <Button 
-              v-if="slotProps.data.grupo_duplicado"
-              icon="pi pi-exclamation-triangle" 
-              severity="warning" 
-              text 
-              rounded 
-              v-tooltip.top="'Possível duplicata encontrada! Clique para gerenciar.'"
-              @click="abrirModalGestaoDuplicatas(slotProps.data.grupo_duplicado)"
-            />
           </template>
         </Column>
 
@@ -591,11 +459,11 @@ const exportarExcel = async () => {
 
         <Column header="Status" style="width: 5rem; text-align: center;">
             <template #body="slotProps">
-                <i v-if="slotProps.data.alerta_atualizacao" class="pi pi-clock text-2xl text-orange-500" v-tooltip.top="'Contato desatualizado há mais de 6 meses'"></i>
+                <i v-if="slotProps.data.alerta_atualizacao" class="pi pi-clock text-2xl text-blue-500" v-tooltip.top="'Contato desatualizado há mais de 6 meses'"></i>
             </template>
         </Column>
 
-        <Column header="Ações">
+        <Column header="Ações" style="width: 10rem">
           <template #body="slotProps">
             <Button icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico Completo" />
             <Button 
@@ -622,6 +490,7 @@ const exportarExcel = async () => {
       </DataTable>
     </main>
 
+    <!-- Todos os Dialogs (Aniversariantes, Edição/Criação, Verificação de Duplicatas) permanecem os mesmos -->
     <Dialog v-model:visible="dialogoAniversariantesVisivel" header="Aniversariantes do Dia" :modal="true">
         <DataTable :value="aniversariantes" paginator :rows="5">
             <Column field="nome_completo" header="Nome"></Column>
@@ -671,9 +540,18 @@ const exportarExcel = async () => {
           <label for="edit-nome">Nome Completo*</label>
           <InputText id="edit-nome" v-model="municipeEmEdicao.nome_completo" />
         </div>
+        <div class="field">
+          <label for="nome">Tratamento</label>
+          <InputText id="nome" v-model="municipeEmEdicao.tratamento" />
+          <small>Ex: Senhor, Senhora, Dr., Dra., Vossa Excelência</small>
+        </div>
+        <div class="field">
+          <label for="nome_guerra">Nome de Guerra / Apelido</label>
+          <InputText id="nome_guerra" v-model="municipeEmEdicao.nome_de_guerra" />
+        </div>
         <div class="grid">
-            <div class="field col-12 md:col-6"><label for="edit-cargo">Cargo</label><InputText id="edit-cargo" v-model="municipeEmEdicao.cargo" /></div>
-            <div class="field col-12 md:col-6"><label for="edit-orgao">Órgão/Empresa</label><InputText id="edit-orgao" v-model="municipeEmEdicao.orgao" /></div>
+          <div class="field col-12 md:col-6"><label for="edit-cargo">Cargo</label><InputText id="edit-cargo" v-model="municipeEmEdicao.cargo" /></div>
+          <div class="field col-12 md:col-6"><label for="edit-orgao">Órgão/Empresa</label><InputText id="edit-orgao" v-model="municipeEmEdicao.orgao" /></div>
         </div>
         <div class="grid">
             <div class="field col-12 md:col-6"><label for="edit-cpf">CPF</label><InputMask id="edit-cpf" v-model="municipeEmEdicao.cpf" mask="999.999.999-99" /></div>
@@ -782,35 +660,6 @@ const exportarExcel = async () => {
         <Button label="Criar Novo Mesmo Assim" icon="pi pi-plus" class="p-button-warning" @click="handleCriarNovoContato" />
       </template>
     </Dialog>
-
-    <Dialog v-model:visible="dialogoGestaoVisivel" :style="{width: '80vw'}" header="Gerenciar Possíveis Duplicatas" :modal="true">
-      <p>Abaixo estão os registros que o sistema identificou como possíveis duplicatas. Compare os dados, selecione os registros que você deseja **excluir** e clique em "Deletar Selecionados". **Lembre-se de preservar o registro mais completo.**</p>
-      
-      <DataTable :value="grupoDuplicadoAtual" v-model:selection="registrosParaDeletar" dataKey="id">
-        <Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
-        <Column field="nome_completo" header="Nome"></Column>
-        <Column field="cpf" header="CPF"></Column>
-        <Column field="email" header="Email"></Column>
-        <Column header="Telefone">
-            <template #body="slotProps">{{ slotProps.data.telefones?.[0]?.numero || '' }}</template>
-        </Column>
-        <Column field="data_cadastro" header="Cadastrado em">
-            <template #body="slotProps">{{ new Date(slotProps.data.data_cadastro).toLocaleDateString('pt-BR') }}</template>
-        </Column>
-      </DataTable>
-
-      <template #footer>
-        <Button label="Cancelar" icon="pi pi-times" text @click="dialogoGestaoVisivel = false" />
-        <Button 
-          label="Deletar Registros Selecionados" 
-          icon="pi pi-trash" 
-          class="p-button-danger" 
-          @click="confirmarDelecaoDeDuplicatas" 
-          :disabled="registrosParaDeletar.length === 0" 
-        />
-      </template>
-    </Dialog>
-
   </div>
 </template>
 

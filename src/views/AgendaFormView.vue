@@ -497,6 +497,11 @@ const handleCriarNovoContato = async () => {
         <InputText id="nome" v-model="municipeEmEdicao.nome_completo" />
       </div>
       <div class="field">
+          <label for="nome">Tratamento</label>
+          <InputText id="nome" v-model="municipeEmEdicao.tratamento" />
+          <small>Ex: Senhor, Senhora, Dr., Dra., Vossa Excelência</small>
+      </div>
+      <div class="field">
           <label for="nome_guerra">Nome de Guerra / Apelido</label>
           <InputText id="nome_guerra" v-model="municipeEmEdicao.nome_de_guerra" />
       </div>

@@ -49,10 +49,16 @@ const model = ref([
                 to: '/contatos' 
             },
             { 
+                label: 'Gestão de Duplicatas', 
+                icon: 'pi pi-fw pi-users', 
+                to: '/gestao-duplicatas',
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+            },
+            { 
                 label: 'Mailing', 
                 icon: 'pi pi-fw pi-envelope', 
                 to: '/mailings',
-                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+                visible: () => authStore.canManageEventos 
             },
         ]
     },

@@ -115,6 +115,12 @@ const router = createRouter({
       component: () => import('@/views/public/PreencherChecklist.vue'),
       props: true // Passa o :token como prop para o componente
     },
+    {
+      path: '/gestao-duplicatas',
+      name: 'gestao-duplicatas',
+      component: () => import('../views/GestaoDuplicatasView.vue'),
+      meta: { requiresAuth: true }
+    },
   ]
 })
 

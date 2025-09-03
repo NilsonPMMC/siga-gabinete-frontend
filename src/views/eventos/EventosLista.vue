@@ -150,7 +150,8 @@ const navegarPara = (routeName) => {
 const statusOptions = ref([
     { label: 'Agendado', value: 'agendado' },
     { label: 'Concluído', value: 'concluido' },
-    { label: 'Cancelado', value: 'cancelado' }
+    { label: 'Cancelado', value: 'cancelado' },
+    { label: 'Stand-by', value: 'standby' }
 ]);
 
 const isNew = computed(() => !eventoEmEdicao.value.id);
@@ -284,6 +285,7 @@ const getCorPorStatus = (status) => ({
     agendado: '#22C55E',
     concluido: '#64748B',
     cancelado: '#EF4444',
+    standby: '#3B82F6',
 })[status] || '#3B82F6';
 
 const baixarRelatorioEventos = async () => {
