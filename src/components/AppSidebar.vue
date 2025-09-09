@@ -18,6 +18,12 @@ const model = ref([
                 to: '/atendimentos',
                 visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
             },
+            {
+                label: 'Lembretes',
+                icon: 'pi pi-fw pi-bookmark', // Ícone de lembrete/marcador
+                to: '/lembretes',
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser
+            },
             {  
                 label: 'Eventos',  
                 icon: 'pi pi-fw pi-calendar', // Ícone de calendário, por exemplo 

@@ -121,6 +121,24 @@ const router = createRouter({
       component: () => import('../views/GestaoDuplicatasView.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/lembretes',
+      name: 'LembretesLista',
+      component: () => import('../views/LembretesListView.vue'),
+      meta: { requiresAuth: true, requiredGroup: 'Secretária' }
+    },
+    {
+      path: '/lembretes/novo',
+      name: 'LembreteNovo',
+      component: () => import('../views/LembreteFormView.vue'),
+      meta: { requiresAuth: true, requiredGroup: 'Secretária' }
+    },
+    {
+      path: '/lembretes/editar/:id',
+      name: 'LembreteEditar',
+      component: () => import('../views/LembreteFormView.vue'),
+      meta: { requiresAuth: true, requiredGroup: 'Secretária' }
+    },
   ]
 })
 
