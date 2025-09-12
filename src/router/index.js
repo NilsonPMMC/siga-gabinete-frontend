@@ -121,6 +121,31 @@ const router = createRouter({
       component: () => import('../views/GestaoDuplicatasView.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/lembretes',
+      name: 'lembretes',
+      component: () => import('../views/LembretesView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/oficios',
+      name: 'oficios-lista',
+      component: () => import('../views/oficios/OficiosListView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/oficios/novo',
+      name: 'oficios-novo',
+      component: () => import('../views/oficios/OficioFormView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/oficios/editar/:id', // O :id é o parâmetro que receberemos
+      name: 'oficios-editar',
+      component: () => import('../views/oficios/OficioFormView.vue'),
+      props: true, // Passa o :id como prop para o componente
+      meta: { requiresAuth: true }
+    },
   ]
 })
 

@@ -14,6 +14,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => !!state.accessToken,
     isSuperuser: (state) => state.user?.is_superuser === true,
+    userContas: (state) => { return state.user?.perfil?.contas || []; },
     isRecepcao: (state) => state.userGroups.includes('Recepção'),
     isMembro: (state) => state.userGroups.includes('Membro do Gabinete'),
     isSecretaria: (state) => state.userGroups.includes('Secretária'),
@@ -30,6 +31,13 @@ export const useAuthStore = defineStore('auth', {
         return true;
       }
       return false;
+    },
+    canManageOficios: (state) => {
+      if (!state.user) return false;
+      // Superusuários sempre podem
+      if (state.user.is_superuser) return true;
+      // Verifica se a permissão específica existe na lista de permissões do usuário
+      return state.user.user_permissions?.includes('oficios.pode_gerenciar_oficios') || false;
     },
   },
 

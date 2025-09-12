@@ -18,12 +18,24 @@ const model = ref([
                 to: '/atendimentos',
                 visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
             },
+            {   label: 'Lembretes',
+                icon: 'pi pi-fw pi-book',
+                to: '/lembretes',
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser
+            },
             {  
                 label: 'Eventos',  
                 icon: 'pi pi-fw pi-calendar', // Ícone de calendário, por exemplo 
                 to: '/eventos',
                 // A mágica acontece aqui, usando nosso novo getter!
                 visible: () => authStore.canManageEventos 
+            },
+            {
+                label: 'Ofícios',
+                icon: 'pi pi-fw pi-file-edit', // Ícone de arquivo/edição
+                to: '/oficios',
+                // Usa o novo getter para controlar a visibilidade
+                visible: () => authStore.canManageOficios 
             },
             { 
                 label: 'Check-in', 

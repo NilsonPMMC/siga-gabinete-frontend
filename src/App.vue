@@ -122,7 +122,7 @@ const executarBusca = () => {
                     <small>{{ authStore.userGroups.join(', ') }}</small>
                 </div>
 
-                <RouterLink to="/configuracoes" v-if="authStore.isSecretaria || authStore.user?.is_superuser">
+                <RouterLink to="/configuracoes" v-if="authStore.isSecretaria || authStore.canManageEventos || authStore.user?.is_superuser">
                     <Button icon="pi pi-cog" text rounded severity="secondary" title="Configurações" />
                 </RouterLink>
 
