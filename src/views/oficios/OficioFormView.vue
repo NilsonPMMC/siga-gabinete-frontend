@@ -50,18 +50,56 @@
           </div>
         </div>
 
-        <div class="field">
-          <label for="diretrizes-ia">Diretrizes para o Assistente de IA</label>
-          <Textarea id="diretrizes-ia" v-model="diretrizesIA" rows="3" placeholder="Ex: Solicitar informações sobre o andamento da obra X, com prazo de 15 dias." />
-          <div class="flex gap-2 mt-2">
-            <Button label="Gerar Rascunho" icon="pi pi-sparkles" @click="chamarIA(false)" :loading="isIaLoading" />
-            <Button label="Aprimorar Texto" icon="pi pi-magic" outlined @click="chamarIA(true)" :loading="isIaLoading" title="Usa as diretrizes para melhorar o texto que já está no editor."/>
-          </div>
-        </div>
-        
-        <div class="field h-full flex flex-column">
-          <label for="corpo">Corpo do Ofício*</label>
-          <Editor ref="editorRef" v-model="oficio.corpo" editorStyle="height: 380px" class="flex-grow-1" />
+        <div class="col-12 md:col-7 flex flex-column">
+            <div class="field">
+                <label for="diretrizes-ia">Diretrizes para o Assistente de IA</label>
+                <Textarea id="diretrizes-ia" v-model="diretrizesIA" rows="3" placeholder="Ex: Solicitar informações sobre o andamento da obra X, com prazo de 15 dias." />
+                <div class="flex gap-2 mt-2">
+                    <Button label="Gerar Rascunho" icon="pi pi-sparkles" @click="chamarIA(false)" :loading="isIaLoading" />
+                    <Button label="Aprimorar Texto" icon="pi pi-magic" outlined @click="chamarIA(true)" :loading="isIaLoading" title="Usa as diretrizes para melhorar o texto que já está no editor."/>
+                </div>
+            </div>
+            
+            <div class="field h-full flex flex-column">
+                <label>Corpo do Ofício*</label>
+                <div v-if="editor" class="tiptap-toolbar">
+                  <Button 
+                    label="B" 
+                    @click="editor.chain().focus().toggleBold().run()" 
+                    :class="{ 'p-button-secondary': editor.isActive('bold') }" 
+                    text 
+                    class="p-button-sm font-bold"
+                    title="Negrito"/>
+                  <Button 
+                    label="I" 
+                    @click="editor.chain().focus().toggleItalic().run()" 
+                    :class="{ 'p-button-secondary': editor.isActive('italic') }" 
+                    text 
+                    class="p-button-sm"
+                    style="font-style: italic;"
+                    title="Itálico"/>
+                  <Button 
+                    icon="pi pi-list" 
+                    @click="editor.chain().focus().toggleBulletList().run()" 
+                    :class="{ 'p-button-secondary': editor.isActive('bulletList') }" 
+                    text 
+                    rounded 
+                    title="Lista"/>
+                  <Button 
+                    icon="pi pi-undo" 
+                    @click="editor.chain().focus().undo().run()" 
+                    text 
+                    rounded 
+                    title="Desfazer"/>
+                  <Button 
+                    icon="pi pi-refresh" 
+                    @click="editor.chain().focus().redo().run()" 
+                    text 
+                    rounded 
+                    title="Refazer"/>
+                </div>
+                <EditorContent :editor="editor" class="tiptap-editor"/>
+            </div>
         </div>
       </div>
       
@@ -74,21 +112,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useAuthStore } from '@/stores/auth';
 import { getOficio, createOficio, updateOficio, gerarTextoComIA } from '@/services/oficios.js';
 import { getContas } from '@/services/comum.js';
-import Editor from 'primevue/editor';
 
-// Inicialização
+// Imports do TipTap
+import { useEditor, EditorContent } from '@tiptap/vue-3';
+import StarterKit from '@tiptap/starter-kit';
+
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 const authStore = useAuthStore();
 
-// Props da rota (para edição)
 const props = defineProps({
   id: {
     type: String,
@@ -98,37 +137,63 @@ const props = defineProps({
 
 // Estado do componente
 const oficio = ref({
-  data_documento: new Date() // Inicia com a data atual
+  data_documento: new Date(),
+  corpo: '' // Importante inicializar
 });
 const contas = ref([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
-const editorRef = ref(null);
 const diretrizesIA = ref('');
 const isIaLoading = ref(false);
 
-// Lógica de Título e Modo (Criação vs. Edição)
 const isEditMode = computed(() => !!props.id);
 const pageTitle = computed(() => isEditMode.value ? 'Editar Ofício' : 'Novo Ofício');
 
-// Carregamento de dados
+// --- CONFIGURAÇÃO DO TIPTAP ---
+const editor = useEditor({
+  extensions: [
+    StarterKit, // Habilita as funcionalidades básicas (negrito, itálico, listas, etc.)
+  ],
+  content: oficio.value.corpo, // Conteúdo inicial
+  // Esta função é a chave para a "mágica" do v-model
+  onUpdate: ({ editor }) => {
+    oficio.value.corpo = editor.getHTML();
+  },
+});
+
+// Este Watcher resolve o problema de popular os dados da API e da IA no editor!
+watch(() => oficio.value.corpo, (newContent) => {
+  if (editor.value) {
+    // Compara o conteúdo atual do editor com o novo conteúdo
+    const isSame = editor.value.getHTML() === newContent;
+    // Se for diferente, atualiza o editor (evitando um loop infinito)
+    if (!isSame) {
+      editor.value.commands.setContent(newContent, false); // 'false' para não disparar o 'onUpdate' novamente
+    }
+  }
+});
+
+// Destruir a instância do editor ao sair do componente para evitar vazamento de memória
+onBeforeUnmount(() => {
+  if (editor.value) {
+    editor.value.destroy();
+  }
+});
+// --- FIM DA CONFIGURAÇÃO DO TIPTAP ---
+
 async function carregarDadosIniciais() {
   isLoading.value = true;
   try {
-    // Carrega a lista de contas para o dropdown (se for superuser)
     if (authStore.isSuperuser) {
       const contasResponse = await getContas();
       contas.value = contasResponse.data;
     }
-
-    // Se estiver em modo de edição, busca os dados do ofício
     if (isEditMode.value) {
       const response = await getOficio(props.id);
-      // Converte a string de data da API para um objeto Date para o Calendar
       response.data.data_documento = new Date(response.data.data_documento + 'T00:00:00');
+      // Apenas atualiza o 'oficio'. O watcher do TipTap fará o resto.
       oficio.value = response.data;
     } else {
-      // Se estiver criando, define a conta padrão para não-superusuários
       if (!authStore.isSuperuser && authStore.userContas.length > 0) {
         oficio.value.conta = authStore.userContas[0];
       }
@@ -144,11 +209,9 @@ async function carregarDadosIniciais() {
 
 onMounted(carregarDadosIniciais);
 
-// Ações do formulário
 async function salvarOficio() {
   isSaving.value = true;
   try {
-    // Converte a data de volta para o formato YYYY-MM-DD para a API
     if (oficio.value.data_documento instanceof Date) {
       const data = oficio.value.data_documento;
       const ano = data.getFullYear();
@@ -156,7 +219,6 @@ async function salvarOficio() {
       const dia = String(data.getDate()).padStart(2, '0');
       oficio.value.data_documento = `${ano}-${mes}-${dia}`;
     }
-
     if (isEditMode.value) {
       await updateOficio(props.id, oficio.value);
       toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Ofício atualizado!' });
@@ -167,7 +229,6 @@ async function salvarOficio() {
     router.push({ name: 'oficios-lista' });
   } catch (error) {
     console.error("Erro ao salvar ofício:", error);
-    // Reconverte a data para objeto Date em caso de erro para o usuário não perder a seleção
     oficio.value.data_documento = new Date(oficio.value.data_documento + 'T00:00:00');
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar o ofício. Verifique os campos.' });
   } finally {
@@ -179,20 +240,6 @@ function voltarParaLista() {
   router.push({ name: 'oficios-lista' });
 }
 
-// Watcher para carregar o conteúdo no Editor, usando o padrão que já validamos
-watch(isLoading, (loadingStatus) => {
-  // Quando o carregamento TERMINA (loadingStatus se torna 'false') E estamos em modo de edição
-  if (loadingStatus === false && isEditMode.value) {
-    // Usamos setTimeout para garantir que o DOM do editor esteja 100% pronto
-    setTimeout(() => {
-      if (editorRef.value && editorRef.value.quill) {
-        // Acessamos a instância interna do Quill.js e definimos o conteúdo HTML diretamente
-        editorRef.value.quill.root.innerHTML = oficio.value.corpo || '';
-      }
-    }, 100); // Um pequeno delay para garantir a renderização
-  }
-});
-
 async function chamarIA(aprimorar) {
   if (!diretrizesIA.value.trim()) {
     toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, forneça as diretrizes para a IA.' });
@@ -201,20 +248,11 @@ async function chamarIA(aprimorar) {
   
   isIaLoading.value = true;
   try {
-    const texto_existente = aprimorar ? (editorRef.value?.quill.root.innerHTML || '') : '';
+    const texto_existente = aprimorar ? (oficio.value.corpo || '') : '';
     const response = await gerarTextoComIA(diretrizesIA.value, texto_existente);
     
-    // --- CORREÇÃO COM SETTIMEOUT ---
-    // Adicionamos um pequeno delay para garantir que o editor esteja pronto
-    setTimeout(() => {
-      if (editorRef.value && editorRef.value.quill) {
-        // Insere o novo conteúdo HTML gerado pela IA
-        editorRef.value.quill.root.innerHTML = response.data.texto_gerado;
-        
-        // Sincroniza o v-model (oficio.corpo) com o novo conteúdo do editor
-        oficio.value.corpo = response.data.texto_gerado;
-      }
-    }, 100); // 100ms é suficiente para o DOM atualizar
+    // Agora ficou simples: basta atualizar a variável. O watcher do TipTap cuida do resto!
+    oficio.value.corpo = response.data.texto_gerado;
 
     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Texto gerado pela IA!' });
   } catch (error) {
@@ -226,24 +264,51 @@ async function chamarIA(aprimorar) {
 }
 </script>
 
-<style scoped>
-.page-container {
-  padding: 2rem;
-}
-.page-header-form {
+<style>
+/* Adicione este CSS ao seu componente ou a um arquivo de estilo global */
+
+.tiptap-toolbar {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.25rem;
+  border: 1px solid #ced4da;
+  border-bottom: 0;
+  padding: 0.5rem;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background-color: #f8f9fa;
 }
-.page-title {
-  margin: 0;
-  font-size: 1.75rem;
+
+.tiptap-editor {
+  border: 1px solid #ced4da;
+  padding: 0.75rem;
+  min-height: 380px;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  background-color: #ffffff;
+  outline: none;
 }
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
+
+.tiptap-editor:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Estilos para o conteúdo dentro do editor */
+.tiptap-editor .ProseMirror {
+    height: 100%;
+    outline: none;
+}
+
+.tiptap-editor .ProseMirror p {
+  margin: 0 0 1rem 0;
+}
+
+.tiptap-editor .ProseMirror ul {
+  margin: 0 0 1rem 0;
+  padding-left: 1.5rem;
+}
+.p-button-sm{
+  width: auto;
 }
 </style>
