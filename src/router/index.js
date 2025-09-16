@@ -146,6 +146,19 @@ const router = createRouter({
       props: true, // Passa o :id como prop para o componente
       meta: { requiresAuth: true }
     },
+    {
+      path: '/oficios/editar/:id', // O :id é o parâmetro que receberemos
+      name: 'oficios-editar',
+      component: () => import('../views/oficios/OficioFormView.vue'),
+      props: true, // Passa o :id como prop para o componente
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/etiquetas',
+      name: 'etiquetas',
+      component: () => import('../views/etiquetas/EtiquetasView.vue'),
+      meta: { requiresAuth: true }
+    },
   ]
 })
 

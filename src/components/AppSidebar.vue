@@ -31,6 +31,11 @@ const model = ref([
                 visible: () => authStore.canManageEventos 
             },
             {
+                label: 'Etiquetas',
+                icon: 'pi pi-fw pi-tag',
+                to: '/etiquetas',
+            },
+            {
                 label: 'Ofícios',
                 icon: 'pi pi-fw pi-file-edit', // Ícone de arquivo/edição
                 to: '/oficios',
