@@ -22,89 +22,14 @@ const statusOptions = ref([
     { label: 'Em Análise', value: 'EM_ANALISE' },
     { label: 'Agendado', value: 'AGENDADO' },
     { label: 'Negado', value: 'NEGADO' },
-    { label: 'Cancelado', value: 'CANCELADO' }
+    { label: 'Cancelado', value: 'CANCELADO' },
+    { label: 'Reagendar', value: 'REAGENDAR' }
 ]);
 
-// --- LÓGICA DO MODAL ---
-const dialogoVisivel = ref(false);
-const solicitacaoSelecionada = ref(null);
-const dataAgendada = ref(null); // Guarda a data escolhida no calendário
-const dataAgendadaFim = ref(null); // <<< NOVO: Para o horário de término
-const espacoSelecionado = ref(null); // <<< NOVO: Para o espaço escolhido
-const espacosOptions = ref([]); // <<< NOVO: Para a lista de espaços
+// --- LÓGICA DO MODAL REMOVIDA ---
+// As funções abrirDialogo e salvarAlteracoes foram removidas.
 
-// Função para abrir o diálogo de gerenciamento
-const abrirDialogo = (solicitacao) => {
-  solicitacaoSelecionada.value = { ...solicitacao };
-  // Converte as datas do backend para objetos Date que o componente Calendar entende
-  dataAgendada.value = solicitacao.data_agendada ? new Date(solicitacao.data_agendada) : null;
-  dataAgendadaFim.value = solicitacao.data_agendada_fim ? new Date(solicitacao.data_agendada_fim) : null;
-  espacoSelecionado.value = solicitacao.espaco; // Pega o ID do espaço já vinculado, se houver
-  dialogoVisivel.value = true;
-};
-
-// Função para salvar as alterações de status ou data
-const salvarAlteracoes = async (novoStatus) => {
-    if (!solicitacaoSelecionada.value) return;
-
-    const solicitacaoId = solicitacaoSelecionada.value.id;
-    const payload = { 
-        status: novoStatus,
-        espaco: espacoSelecionado.value,
-    };
-    
-    // Se o status for 'AGENDADO', valida e inclui as datas
-    if (novoStatus === 'AGENDADO') {
-        if (!dataAgendada.value || !dataAgendadaFim.value) {
-            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, selecione o horário de início e término.', life: 3000 });
-            return;
-        }
-        if (new Date(dataAgendadaFim.value) <= new Date(dataAgendada.value)) {
-            toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O horário de término deve ser posterior ao de início.', life: 3000 });
-            return;
-        }
-        payload.data_agendada = new Date(dataAgendada.value).toISOString();
-        payload.data_agendada_fim = new Date(dataAgendadaFim.value).toISOString();
-    }
-
-    try {
-        // PASSO 1: ATUALIZA O STATUS DA SOLICITAÇÃO DE AGENDA (COMO ANTES)
-        const response = await apiClient.patch(`/api/agendas/${solicitacaoId}/`, payload);
-        
-        // PASSO 2 (NOVO): SE CONFIRMOU E RESERVOU UM ESPAÇO, CRIA A RESERVA NA TABELA NOVA
-        if (novoStatus === 'AGENDADO' && espacoSelecionado.value) {
-            const reservaPayload = {
-                titulo: `Reunião: ${solicitacaoSelecionada.value.assunto}`,
-                solicitante: solicitacaoSelecionada.value.solicitante, // O solicitante que já estava na agenda
-                espaco: espacoSelecionado.value,
-                data_inicio: payload.data_agendada,
-                data_fim: payload.data_agendada_fim,
-                observacoes: `Reserva criada a partir da solicitação de agenda #${solicitacaoId}.`
-            };
-            
-            // Chama a nova API de reservas
-            await apiClient.post('/api/reservas-espaco/', reservaPayload);
-            toast.add({ severity: 'info', summary: 'Espaço Reservado', detail: `O espaço foi reservado com sucesso na nova tabela.`, life: 4000 });
-        }
-        
-        // Atualiza a lista na tela instantaneamente
-        const index = solicitacoes.value.findIndex(s => s.id === solicitacaoId);
-        if (index !== -1) {
-            solicitacoes.value[index] = response.data;
-            todasSolicitacoes.value[solicitacoes.value.findIndex(s => s.id === solicitacaoId)] = response.data;
-        }
-
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: `Solicitação atualizada.`, life: 3000 });
-        dialogoVisivel.value = false;
-
-    } catch (error) {
-        // A "mágica" anti-conflito: exibe o erro vindo do backend
-        const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Não foi possível atualizar a solicitação.';
-        toast.add({ severity: 'error', summary: 'Erro', detail: errorMsg, life: 5000 });
-    }
-};
-
-// Função para confirmar e executar a exclusão
+// Função para confirmar e executar a exclusão (Mantida)
 const confirmarExclusao = (solicitacao) => {
   confirm.require({
     message: 'Tem certeza que deseja excluir permanentemente esta solicitação de agenda?',
@@ -115,8 +40,7 @@ const confirmarExclusao = (solicitacao) => {
     rejectLabel: 'Cancelar',
     accept: async () => {
       try {
-        await apiClient.delete(`/api/agendas/${solicitacao.id}/`);
-        // Remove o item da lista na tela, sem precisar recarregar a página
+        await apiClient.delete(`/api/solicitacoes-agenda/${solicitacao.id}/`);
         solicitacoes.value = solicitacoes.value.filter(s => s.id !== solicitacao.id);
         toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Solicitação excluída.', life: 3000 });
       } catch (error) {
@@ -134,14 +58,10 @@ onMounted(async () => {
   }
   isLoading.value = true;
   try {
-    // Agora, busca as solicitações E a lista de espaços disponíveis
-    const [solicitacoesRes, espacosRes] = await Promise.all([
-        apiClient.get('/api/agendas/'),
-        apiClient.get('/api/espacos/')
-    ]);
+    // A busca de 'espacos' foi removida pois não é mais necessária nesta tela
+    const solicitacoesRes = await apiClient.get('/api/solicitacoes-agenda/');
     todasSolicitacoes.value = solicitacoesRes.data;
     solicitacoes.value = solicitacoesRes.data;
-    espacosOptions.value = espacosRes.data; // Alimenta o nosso novo dropdown
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro de Rede', detail: 'Não foi possível carregar os dados.' });
   } finally {
@@ -149,15 +69,14 @@ onMounted(async () => {
   }
 });
 
-// Função auxiliar para colorir as tags de status
+// Funções de filtro (Mantidas)
 const getStatusSeverity = (status) => {
-  const map = { 'SOLICITADO': 'info', 'EM_ANALISE': 'warning', 'AGENDADO': 'success', 'NEGADO': 'danger', 'CANCELADO': 'secondary' };
+  const map = { 'SOLICITADO': 'info', 'EM_ANALISE': 'warning', 'AGENDADO': 'success', 'NEGADO': 'danger', 'CANCELADO': 'secondary', 'REAGENDAR': 'warning' };
   return map[status] || 'contrast';
 };
 
 const aplicarFiltros = () => {
   let items = [...todasSolicitacoes.value];
-
   if (filtroTexto.value) {
     const busca = filtroTexto.value.toLowerCase();
     items = items.filter(s =>
@@ -168,50 +87,48 @@ const aplicarFiltros = () => {
   if (filtroStatus.value) {
     items = items.filter(s => s.status === filtroStatus.value);
   }
-  solicitacoes.value = items; // A mágica está aqui: atualiza a mesma variável que a tabela usa
+  solicitacoes.value = items;
 };
 
 const limparFiltros = () => {
   filtroTexto.value = '';
   filtroStatus.value = null;
-  solicitacoes.value = [...todasSolicitacoes.value]; // Restaura a partir da lista de backup
+  solicitacoes.value = [...todasSolicitacoes.value];
 };
 
-// Função para o botão de editar
+// --- FUNÇÕES DE NAVEGAÇÃO ---
+
+// NOVA FUNÇÃO para ir para a tela de detalhes
+const verDetalhes = (solicitacao) => {
+  router.push({ name: 'agenda-detalhes', params: { id: solicitacao.id } });
+};
+
+// Função para o botão de editar (Mantida)
 const editarSolicitacao = (id) => {
   router.push(`/agendas/editar/${id}`);
 };
 
-// Função para o botão de criar
+// Função para o botão de criar (Mantida)
 const irParaNovaSolicitacao = () => {
   router.push('/agendas/novo');
 };
 
+// Funções do Google Agenda (Mantidas)
 const criarEventoGoogle = async (solicitacao) => {
-    // Adiciona um feedback visual de carregamento
     const originalStatus = solicitacao.status;
-    solicitacoes.value = solicitacoes.value.map(s => 
-        s.id === solicitacao.id ? { ...s, status: 'ENVIANDO' } : s
-    );
-
+    solicitacoes.value = solicitacoes.value.map(s => s.id === solicitacao.id ? { ...s, status: 'ENVIANDO' } : s);
     try {
-        const response = await apiClient.post(`/api/agendas/${solicitacao.id}/criar-evento-google/`);
+        const response = await apiClient.post(`/api/solicitacoes-agenda/${solicitacao.id}/criar-evento-google/`);
         toast.add({ severity: 'success', summary: 'Sucesso!', detail: response.data.detail, life: 4000 });
-        
-        // Atualiza o item na lista com o novo link (se você adicionou o campo no modelo)
         const index = todasSolicitacoes.value.findIndex(s => s.id === solicitacao.id);
         if (index !== -1) {
             todasSolicitacoes.value[index].link_google_agenda = response.data.googleEventUrl;
-            todasSolicitacoes.value[index].status = originalStatus; // Restaura o status visual
+            todasSolicitacoes.value[index].status = originalStatus;
         }
         aplicarFiltros();
-
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro de Integração', detail: error.response?.data?.detail || 'Não foi possível criar o evento.', life: 5000 });
-        // Restaura o status visual em caso de erro
-        solicitacoes.value = solicitacoes.value.map(s => 
-            s.id === solicitacao.id ? { ...s, status: originalStatus } : s
-        );
+        solicitacoes.value = solicitacoes.value.map(s => s.id === solicitacao.id ? { ...s, status: originalStatus } : s);
     }
 };
 
@@ -224,9 +141,7 @@ const removerLinkGoogle = (solicitacao) => {
         rejectLabel: 'Cancelar',
         accept: async () => {
             try {
-                const response = await apiClient.post(`/api/agendas/${solicitacao.id}/remover-link-google/`);
-                
-                // Atualiza a lista na tela com os dados retornados (sem o link)
+                const response = await apiClient.post(`/api/solicitacoes-agenda/${solicitacao.id}/remover-link-google/`);
                 const index = solicitacoes.value.findIndex(s => s.id === solicitacao.id);
                 if (index !== -1) {
                     solicitacoes.value[index] = response.data;
@@ -250,20 +165,20 @@ const removerLinkGoogle = (solicitacao) => {
     <Card class="mb-4">
       <template #title>Filtros de Busca</template>
       <template #content>
-          <div class="grid formgrid p-fluid align-items-end">
-              <div class="field col-12 md:col-6">
-                  <label for="filtroTexto">Buscar por Assunto ou Solicitante</label>
-                  <InputText id="filtroTexto" v-model="filtroTexto" placeholder="Digite aqui..." @keyup.enter="aplicarFiltros" />
-              </div>
-              <div class="field col-12 md:col-3">
-                  <label for="filtroStatus">Status</label>
-                  <Dropdown id="filtroStatus" v-model="filtroStatus" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros"/>
-              </div>
-              <div class="field col-12 md:col-3 flex justify-content-start gap-2">
-                  <Button label="Filtrar" icon="pi pi-filter" @click="aplicarFiltros" />
-                  <Button label="Limpar" icon="pi pi-times" @click="limparFiltros" class="p-button-secondary" />
-              </div>
-          </div>
+        <div class="grid formgrid p-fluid align-items-end">
+            <div class="field col-12 md:col-6">
+                <label for="filtroTexto">Buscar por Assunto ou Solicitante</label>
+                <InputText id="filtroTexto" v-model="filtroTexto" placeholder="Digite aqui..." @keyup.enter="aplicarFiltros" />
+            </div>
+            <div class="field col-12 md:col-3">
+                <label for="filtroStatus">Status</label>
+                <Dropdown id="filtroStatus" v-model="filtroStatus" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros"/>
+            </div>
+            <div class="field col-12 md:col-3 flex justify-content-start gap-2">
+                <Button label="Filtrar" icon="pi pi-filter" @click="aplicarFiltros" />
+                <Button label="Limpar" icon="pi pi-times" @click="limparFiltros" class="p-button-secondary" />
+            </div>
+        </div>
       </template>
     </Card>
 
@@ -287,7 +202,7 @@ const removerLinkGoogle = (solicitacao) => {
         </Column>
         <Column header="Ações" style="width: 8rem; text-align: center; display:flex; justify-content: center;">
             <template #body="slotProps">
-              <Button icon="pi pi-cog" text rounded @click="abrirDialogo(slotProps.data)" title="Gerenciar Solicitação" />
+              <Button icon="pi pi-eye" text rounded @click="verDetalhes(slotProps.data)" title="Ver Detalhes e Histórico" />
               
               <Button 
                   v-if="slotProps.data.status === 'AGENDADO' && !slotProps.data.link_google_agenda" 
@@ -311,38 +226,6 @@ const removerLinkGoogle = (solicitacao) => {
       </DataTable>
     </main>
 
-    <Dialog v-model:visible="dialogoVisivel" :style="{width: '50rem'}" header="Gerenciar Solicitação de Agenda" :modal="true" :draggable="false">
-        <div v-if="solicitacaoSelecionada">
-            <p><strong>Solicitante:</strong> {{ solicitacaoSelecionada.solicitante_nome }}</p>
-            <p><strong>Gabinete:</strong> {{ solicitacaoSelecionada.conta_nome }}</p>
-            <p><strong>Data da Solicitação:</strong> {{ new Date(solicitacaoSelecionada.data_criacao).toLocaleString('pt-BR') }}</p>
-            <p><strong>Data Sugerida:</strong> {{ solicitacaoSelecionada.data_sugerida ? new Date(solicitacaoSelecionada.data_sugerida).toLocaleString('pt-BR') : 'Não informada' }}</p>
-            <hr>
-            <h4>Assunto: {{ solicitacaoSelecionada.assunto }}</h4>
-            <p style="white-space: pre-wrap;">{{ solicitacaoSelecionada.detalhes }}</p>
-            <hr>
-            <div class="grid formgrid p-fluid">
-                <div class="field col-12 md:col-4">
-                    <label for="espaco">Reservar Espaço (Opcional)</label>
-                    <Dropdown id="espaco" v-model="espacoSelecionado" :options="espacosOptions" optionLabel="nome" optionValue="id" placeholder="Nenhum" showClear />
-                </div>
-                <div class="field col-12 md:col-4">
-                    <label for="data_agendada">Definir Início da Reunião</label>
-                    <Calendar id="data_agendada" v-model="dataAgendada" showTime hourFormat="24" dateFormat="dd/mm/yy" />
-                </div>
-                <div class="field col-12 md:col-4">
-                    <label for="data_agendada_fim">Definir Término da Reunião</label>
-                    <Calendar id="data_agendada_fim" v-model="dataAgendadaFim" showTime hourFormat="24" dateFormat="dd/mm/yy" />
-                </div>
-            </div>
-        </div>
-        <template #footer>
-            <Button label="Negar" icon="pi pi-times" severity="danger" @click="salvarAlteracoes('NEGADO')" />
-            <Button label="Em Análise" icon="pi pi-spin pi-spinner" severity="warning" @click="salvarAlteracoes('EM_ANALISE')" />
-            <Button label="Confirmar Agendamento" icon="pi pi-check" severity="success" @click="salvarAlteracoes('AGENDADO')" />
-        </template>
-    </Dialog>
-
     <Toast />
     <ConfirmDialog />
   </div>
@@ -357,10 +240,10 @@ hr { margin: 1.5rem 0; border: 0; border-top: 1px solid #dee2e6; }
   display: flex;
   flex-direction: column;
   line-height: 1.2;
-  font-size: 0.9rem; /* Tamanho da fonte principal da data */
+  font-size: 0.9rem;
 }
 .data-formatada small {
-  font-size: 0.8rem; /* Tamanho menor para a hora */
-  color: #6c757d; /* Cor secundária para a hora */
+  font-size: 0.8rem;
+  color: #6c757d;
 }
 </style>

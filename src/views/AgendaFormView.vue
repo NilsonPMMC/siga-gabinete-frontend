@@ -68,7 +68,7 @@ onMounted(async () => {
 
     if (isEditMode.value) {
         try {
-            const { data } = await apiClient.get(`/api/agendas/${route.params.id}/`);
+            const { data } = await apiClient.get(`/api/solicitacoes-agenda/${route.params.id}/`);
             if (data.data_sugerida) data.data_sugerida = new Date(data.data_sugerida);
             solicitacao.value = data;
 
@@ -122,8 +122,8 @@ const salvarAgenda = async () => {
   }
   try {
     const { data } = isEditMode.value
-      ? await apiClient.put(`/api/agendas/${payload.id}/`, payload)
-      : await apiClient.post('/api/agendas/', payload);
+      ? await apiClient.put(`/api/solicitacoes-agenda/${payload.id}/`, payload)
+      : await apiClient.post('/api/solicitacoes-agenda/', payload);
     
     toast.add({ severity: 'success', summary: 'Sucesso', detail: `Solicitação de agenda ${isEditMode.value ? 'atualizada' : 'criada'}!`, life: 3000 });
     router.push('/agendas');

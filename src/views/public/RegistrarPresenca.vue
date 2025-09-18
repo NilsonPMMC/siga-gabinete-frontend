@@ -49,7 +49,7 @@
                     </div>
 
                     <div class="field">
-                        <label for="email">E-mail (para receber o certificado)</label>
+                        <label for="email">E-mail*</label>
                         <InputText id="email" v-model="form.email" type="email" />
                     </div>
                     
@@ -118,8 +118,8 @@ onMounted(async () => {
 });
 
 const registrar = async () => {
-    if (!form.value.nome_completo || !form.value.telefone) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome e telefone são obrigatórios.' });
+    if (!form.value.nome_completo || !form.value.telefone || !form.value.email) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome, telefone e e-mail são obrigatórios.' });
         return;
     }
 

@@ -26,7 +26,8 @@ const statusOptions = ref([
     { label: 'Em Análise', value: 'EM_ANALISE' },
     { label: 'Agendado', value: 'AGENDADO' },
     { label: 'Negado', value: 'NEGADO' },
-    { label: 'Cancelado', value: 'CANCELADO' }
+    { label: 'Cancelado', value: 'CANCELADO' },
+    { label: 'Reagendar', value: 'REAGENDAR' }
 ]);
 
 // --- LÓGICA DO MODAL (AS PEÇAS QUE FALTAVAM) ---
@@ -69,7 +70,7 @@ const salvarAlteracoes = async (novoStatus) => {
   }
 
   try {
-    const response = await apiClient.patch(`/api/agendas/${solicitacaoId}/`, payload);
+    const response = await apiClient.patch(`/api/solicitacoes-agenda/${solicitacaoId}/`, payload);
     const index = solicitacoes.value.findIndex(s => s.id === solicitacaoId);
     if (index !== -1) {
       todasSolicitacoes.value[index] = response.data;
@@ -87,7 +88,7 @@ const buscarDados = async () => {
   isLoading.value = true;
   try {
     // A busca no backend já aplica os filtros de permissão de conta.
-    const response = await apiClient.get('/api/agendas/');
+    const response = await apiClient.get('/api/solicitacoes-agenda/');
     todasSolicitacoes.value = response.data;
     solicitacoesNaTela.value = response.data; // Popula a tabela
   } catch (error) {

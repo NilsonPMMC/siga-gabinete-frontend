@@ -55,7 +55,7 @@ const iniciarAutorizacaoGoogle = async () => {
         </template>
       </Card>
 
-      <Card>
+      <Card class="mb-4">
         <template #title>Módulo de Eventos</template>
         <template #content>
             <div class="flex align-items-center cursor-pointer" @click="$router.push('/configuracoes/checklist-items')">
@@ -63,6 +63,19 @@ const iniciarAutorizacaoGoogle = async () => {
                 <div>
                     <h4 class="font-bold text-lg mb-0 hover:text-primary">Gerenciar Itens Mestre do Checklist</h4>
                     <p class="mt-1 mb-0 text-sm">Adicione, edite ou remova itens da lista global de checklist.</p>
+                </div>
+            </div>
+        </template>
+      </Card>
+
+      <Card class="mb-4">
+        <template #title>Módulo de Contatos</template>
+        <template #content>
+            <div class="flex align-items-center cursor-pointer" @click="$router.push('/configuracoes/contato-categorias')">
+                <i class="pi pi-list text-4xl mr-3 text-primary"></i>
+                <div>
+                    <h4 class="font-bold text-lg mb-0 hover:text-primary">Gerenciar Categorias de Contatos</h4>
+                    <p class="mt-1 mb-0 text-sm">Adicione, edite ou remova categorias dos contatos.</p>
                 </div>
             </div>
         </template>

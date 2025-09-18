@@ -43,7 +43,13 @@
                     </template>
                     <template #empty>Nenhuma presença registrada para este evento.</template>
                     
-                    <Column field="nome_completo" header="Nome" :sortable="true"></Column>
+                    <Column field="nome_completo" header="Nome" sortable>
+                        <template #body="slotProps">
+                            <RouterLink :to="`/contatos/editar/${slotProps.data.municipe_id}`">
+                            {{ slotProps.data.nome_completo }}
+                            </RouterLink>
+                        </template>
+                    </Column>
                     <Column field="telefone" header="Telefone"></Column>
                     <Column field="email" header="E-mail"></Column>
                     <Column field="instituicao_orgao" header="Instituição/Órgão"></Column>
@@ -60,7 +66,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import eventosService from '@/services/eventos';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
@@ -82,6 +88,7 @@ import Tag from 'primevue/tag';
 import MultiSelect from 'primevue/multiselect';
 
 const route = useRoute();
+const router = useRouter();
 const toast = useToast();
 const eventoId = route.params.id;
 const authStore = useAuthStore();

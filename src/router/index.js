@@ -5,6 +5,7 @@ import DashboardView from '../views/DashboardView.vue'
 import AtendimentoDetailView from '../views/AtendimentoDetailView.vue'
 import AtendimentoFormView from '../views/AtendimentoFormView.vue';
 import AgendaListView from '../views/AgendaListView.vue';
+import AgendaDetailView from '../views/AgendaDetailView.vue';
 import AgendaFormView from '../views/AgendaFormView.vue';
 import RelatoriosView from '../views/RelatoriosView.vue';
 import AgendaReportView from '../views/AgendaReportView.vue';
@@ -31,6 +32,7 @@ const router = createRouter({
     { path: '/agendas', name: 'agendas', component: AgendaListView, meta: { requiresAuth: true } },
     { path: '/agendas/novo', name: 'agenda-novo', component: AgendaFormView, meta: { requiresAuth: true } },
     { path: '/agendas/editar/:id', name: 'agenda-editar', component: AgendaFormView, meta: { requiresAuth: true } },
+    { path: '/agendas/:id', name: 'agenda-detalhes', component: AgendaDetailView, meta: { requiresAuth: true } },
     { path: '/relatorios', name: 'relatorios', component: RelatoriosView, meta: { requiresAuth: true } },
     { path: '/atendimentos/novo', name: 'atendimento-novo', component: AtendimentoFormView, meta: { requiresAuth: true } },
     { path: '/atendimentos/editar/:id', name: 'atendimento-editar', component: AtendimentoFormView, meta: { requiresAuth: true } },
@@ -41,6 +43,7 @@ const router = createRouter({
     { path: '/busca', name: 'busca', component: BuscaView, meta: { requiresAuth: true } },
     { path: '/configuracoes', name: 'configuracoes', component: ConfiguracoesView, meta: { requiresAuth: true } },
     { path: '/configuracoes/checklist-items', name: 'config-checklist-items', component: () => import('@/views/eventos/MasterChecklistManager.vue'), meta: { requiresAuth: true, permission: 'canManageEventos' } },
+    { path: '/configuracoes/contato-categorias', name: 'config-contato-categorias', component: () => import('@/views/MasterContatoCategorias.vue'), meta: { requiresAuth: true, permission: 'canManageEventos' } },
     { path: '/recuperar-senha', name: 'recuperar-senha', component: RequestPasswordResetView },
     { path: '/reset-password/:uid/:token', name: 'reset-password-confirm', component: ResetPasswordConfirmView },
     { path: '/espacos', name: 'espacos', component: EspacosView, meta: { requiresAuth: true } },
@@ -157,6 +160,19 @@ const router = createRouter({
       path: '/etiquetas',
       name: 'etiquetas',
       component: () => import('../views/etiquetas/EtiquetasView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/contatos/novo',
+      name: 'contato-novo',
+      component: () => import('../views/ContatoFormView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/contatos/editar/:id',
+      name: 'contato-editar',
+      component: () => import('../views/ContatoFormView.vue'),
+      props: true, // Isso faz com que o :id da URL seja passado como prop para o componente
       meta: { requiresAuth: true }
     },
   ]
