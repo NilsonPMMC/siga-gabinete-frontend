@@ -127,6 +127,7 @@ const novaTramitacao = ref({
 
 const espacosOptions = ref([]);
 const statusOptions = ref([
+    { label: 'Solicitado', value: 'SOLICITADO' },
     { label: 'Em Análise', value: 'EM_ANALISE' },
     { label: 'Agendado', value: 'AGENDADO' },
     { label: 'Negado', value: 'NEGADO' },

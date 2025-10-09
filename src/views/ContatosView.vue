@@ -431,6 +431,7 @@ const exportarExcel = async () => {
         </Column>
         <Column field="categoria_nome" header="Categoria" sortable></Column>
         <Column field="cargo" header="Cargo" sortable></Column>
+        <Column field="orgao" header="Orgão" sortable></Column>
         <Column field="emails" header="Email Principal" :sortable="false">
             <template #body="slotProps">
                 <div class="flex align-items-center gap-2" v-if="slotProps.data.emails && slotProps.data.emails.length > 0 && slotProps.data.emails[0].email">
@@ -457,11 +458,11 @@ const exportarExcel = async () => {
           </template>
         </Column>
 
-        <Column header="Status" style="width: 5rem; text-align: center;">
+        <!-- <Column header="Status" style="width: 5rem; text-align: center;">
             <template #body="slotProps">
                 <i v-if="slotProps.data.alerta_atualizacao" class="pi pi-clock text-2xl text-blue-500" v-tooltip.top="'Contato desatualizado há mais de 6 meses'"></i>
             </template>
-        </Column>
+        </Column>-->
 
         <Column header="Ações" style="width: 10rem">
           <template #body="slotProps">
