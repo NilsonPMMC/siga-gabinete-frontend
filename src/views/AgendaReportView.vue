@@ -4,6 +4,7 @@ import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 import apiClient from '@/api';
 import { useAuthStore } from '@/stores/auth';
+import MultiSelect from 'primevue/multiselect';
 
 const authStore = useAuthStore();
 const toast = useToast();
@@ -25,9 +26,11 @@ const statusOptions = ref([
     { label: 'Solicitado', value: 'SOLICITADO' },
     { label: 'Em Análise', value: 'EM_ANALISE' },
     { label: 'Agendado', value: 'AGENDADO' },
+    { label: 'Agendar', value: 'AGENDAR' },
     { label: 'Negado', value: 'NEGADO' },
     { label: 'Cancelado', value: 'CANCELADO' },
-    { label: 'Reagendar', value: 'REAGENDAR' }
+    { label: 'Reagendar', value: 'REAGENDAR' },
+    { label: 'Encaminhado', value: 'ENCAMINHADO' }
 ]);
 
 // --- LÓGICA DO MODAL (AS PEÇAS QUE FALTAVAM) ---
@@ -37,10 +40,15 @@ const dataAgendada = ref(null);
 
 const aplicarFiltros = () => {
   let items = [...todasSolicitacoes.value];
-  if (filtroStatus.value) {
-    items = items.filter(s => s.status === filtroStatus.value);
+
+  // Verifica se o array de filtros não está vazio
+  if (filtroStatus.value && filtroStatus.value.length > 0) {
+    // Filtra os itens mantendo apenas aqueles cujo status ESTÁ INCLUÍDO no array filtroStatus
+    items = items.filter(s => filtroStatus.value.includes(s.status));
   }
-  // Adicionar aqui a lógica para os outros filtros (conta, data) se necessário no frontend
+  
+  // Lógica para outros filtros permanece a mesma...
+  
   solicitacoesNaTela.value = items;
 };
 
@@ -115,11 +123,16 @@ onMounted(async () => {
 // Exporta o PDF com os mesmos filtros
 const exportarPDF = async () => {
   isExporting.value = true;
-  const params = {};
-  if (dataInicio.value) params.data_inicio = new Date(dataInicio.value).toISOString().slice(0, 10);
-  if (dataFim.value) params.data_fim = new Date(dataFim.value).toISOString().slice(0, 10);
-  if (filtroConta.value) params.conta_id = filtroConta.value;
-  if (filtroStatus.value) params.status = filtroStatus.value;
+  const params = new URLSearchParams();
+  if (dataInicio.value) params.append('data_inicio', new Date(dataInicio.value).toISOString().slice(0, 10));
+  if (dataFim.value) params.append('data_fim', new Date(dataFim.value).toISOString().slice(0, 10));
+  if (filtroConta.value) params.append('conta_id', filtroConta.value);
+  if (filtroStatus.value && filtroStatus.value.length > 0) {
+    // Itera sobre o array e adiciona cada status como um parâmetro separado
+    filtroStatus.value.forEach(status => {
+      params.append('status', status);
+    });
+  }
 
   try {
     const response = await apiClient.get('/api/relatorios/agendas/pdf/', { params, responseType: 'blob' });
@@ -153,7 +166,10 @@ const exportarPDF = async () => {
           <div class="field col"><label>Data de Início</label><Calendar v-model="dataInicio" dateFormat="dd/mm/yy" appendTo="body" /></div>
           <div class="field col"><label>Data de Fim</label><Calendar v-model="dataFim" dateFormat="dd/mm/yy" appendTo="body" /></div>
           <div class="field col" v-if="authStore.user?.is_superuser"><label>Gabinete</label><Dropdown v-model="filtroConta" :options="contasOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear /></div>
-          <div class="field col"><label>Status</label><Dropdown v-model="filtroStatus" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear /></div>
+          <div class="field col">
+            <label>Status</label>
+            <MultiSelect v-model="filtroStatus" display="chip" :options="statusOptions" optionLabel="label" optionValue="value" filter placeholder="Todos" :maxSelectedLabels="3" />
+          </div>
           <div class="field col flex gap-2">
             <Button label="Aplicar Filtros" icon="pi pi-filter" @click="aplicarFiltros" :loading="isLoading" />
             <Button label="Exportar PDF" icon="pi pi-file-pdf" class="p-button-secondary" @click="exportarPDF" :loading="isExporting" />

@@ -1,11 +1,14 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import apiClient from '@/api';
 import axios from 'axios';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
 import { useConfirm } from "primevue/useconfirm";
+import MultiSelect from 'primevue/multiselect';
+import { format, addDays, subDays, parseISO, startOfToday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // --- DECLARAÇÕES INICIAIS ---
 const router = useRouter();
@@ -20,18 +23,27 @@ const todosMunicipes = ref([]);
 const municipesNaTela = ref([]);
 const filtroTexto = ref('');
 const filtroLetra = ref('');
+const filtroCategorias = ref([]);
 const alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
-
+const filtroOrdem = ref('nome');
+const ordemOptions = ref([
+    { label: 'Ordenar por Nome', value: 'nome' },
+    { label: 'Ordenar por Órgão', value: 'orgao' }
+]);
+const municipesSelecionados = ref([]);
+const dialogoCategoriaLoteVisivel = ref(false);
+const novaCategoriaId = ref(null);
+const isUpdatingCategoria = ref(false);
 const aniversariantes = ref([]);
 const categoriasContato = ref([]);
 const contas = ref([]);
-
 const dialogoAniversariantesVisivel = ref(false);
 const dialogoVisivel = ref(false);
 const municipeEmEdicao = ref({});
-
 const dialogoDuplicatasVisivel = ref(false);
 const contatosEncontrados = ref([]);
+const dataAniversariantesVisivel = ref(startOfToday());
+const isLoadingAniversariantes = ref(false);
 
 
 // --- CARREGAMENTO INICIAL DOS DADOS ---
@@ -41,22 +53,21 @@ onMounted(() => {
     return;
   }
   carregarDadosIniciais();
+  carregarAniversariantes(dataAniversariantesVisivel.value);
 });
 
 const carregarDadosIniciais = async () => {
     isLoading.value = true;
     try {
-        const [municipesRes, categoriasRes, aniversariantesRes, contasRes] = await Promise.all([
+        const [municipesRes, categoriasRes, contasRes] = await Promise.all([
             apiClient.get('/api/municipes/'),
             apiClient.get('/api/contatos/categorias/'),
-            apiClient.get('/api/municipes/aniversariantes-do-dia/'),
             apiClient.get('/api/contas/')
         ]);
 
         todosMunicipes.value = municipesRes.data;
         municipesNaTela.value = municipesRes.data;
         categoriasContato.value = categoriasRes.data;
-        aniversariantes.value = aniversariantesRes.data;
         contas.value = contasRes.data;
 
     } catch (error) {
@@ -65,6 +76,48 @@ const carregarDadosIniciais = async () => {
         isLoading.value = false;
     }
 };
+
+const carregarAniversariantes = async (dataParaBuscar) => {
+    isLoadingAniversariantes.value = true;
+    aniversariantes.value = []; // Limpa a lista antes de buscar
+    
+    try {
+        // Formata a data para AAAA-MM-DD para enviar à API
+        const dataFormatada = format(dataParaBuscar, 'yyyy-MM-dd');
+        
+        const response = await apiClient.get('/api/municipes/aniversariantes-do-dia/', {
+            params: { data: dataFormatada }
+        });
+        aniversariantes.value = response.data;
+    } catch (error) {
+        console.error("Erro ao carregar aniversariantes:", error);
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os aniversariantes.' });
+    } finally {
+        isLoadingAniversariantes.value = false;
+    }
+};
+
+const buscarDiaAnterior = () => {
+    const novaData = subDays(dataAniversariantesVisivel.value, 1);
+    dataAniversariantesVisivel.value = novaData;
+    carregarAniversariantes(novaData);
+};
+
+const buscarDiaSeguinte = () => {
+    const novaData = addDays(dataAniversariantesVisivel.value, 1);
+    dataAniversariantesVisivel.value = novaData;
+    carregarAniversariantes(novaData);
+};
+
+// Computada para formatar a data exibida
+const dataAniversariantesFormatada = computed(() => {
+    return format(dataAniversariantesVisivel.value, 'dd/MM', { locale: ptBR });
+});
+
+// Computada para verificar se a data exibida é hoje
+const ehHoje = computed(() => {
+    return format(dataAniversariantesVisivel.value, 'yyyy-MM-dd') === format(startOfToday(), 'yyyy-MM-dd');
+});
 
 const tiposDeEmail = ref([
     { label: 'Principal', value: 'principal' },
@@ -282,24 +335,33 @@ const handleCriarNovoContato = async () => {
 
 const aplicarFiltros = async () => {
   isLoading.value = true;
+  
+  const params = new URLSearchParams();
+  if (filtroTexto.value) params.append('q', filtroTexto.value);
+  if (filtroLetra.value) params.append('letra', filtroLetra.value);
+
+  // Adiciona o filtro de categorias
+  if (filtroCategorias.value && filtroCategorias.value.length > 0) {
+    filtroCategorias.value.forEach(id => {
+      params.append('categoria_id', id);
+    });
+  }
+
   try {
-    const params = {
-      q: filtroTexto.value,
-      letra: filtroLetra.value,
-    };
-    
+    // Note que passamos 'params' direto para o axios
     const response = await apiClient.get('/api/municipes/', { params });
-    municipesNaTela.value = response.data; 
-  } catch (error) { 
-    console.error("Erro ao buscar contatos:", error); 
-  } finally { 
-    isLoading.value = false; 
+    municipesNaTela.value = response.data;
+  } catch (error) {
+    console.error("Erro ao buscar contatos:", error);
+  } finally {
+    isLoading.value = false;
   }
 };
 
 const limparFiltros = async () => {
   filtroTexto.value = '';
   filtroLetra.value = '';
+  filtroCategorias.value = [];
   await carregarDadosIniciais();
 };
 
@@ -346,8 +408,18 @@ const copiarTexto = (texto) => {
 const exportarExcel = async () => {
   isExporting.value = true;
   try {
+    const params = new URLSearchParams();
+    if (filtroTexto.value) params.append('q', filtroTexto.value);
+    if (filtroOrdem.value) params.append('ordenar_por', filtroOrdem.value);
+
+    if (filtroCategorias.value && filtroCategorias.value.length > 0) {
+      filtroCategorias.value.forEach(id => {
+        params.append('categoria_id', id);
+      });
+    }
+
     const response = await apiClient.get('/api/municipes/export/excel/', {
-      params: { q: filtroTexto.value },
+      params: params,
       responseType: 'blob',
     });
     const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -364,6 +436,94 @@ const exportarExcel = async () => {
     isExporting.value = false;
   }
 };
+
+const exportarPDF = async () => {
+  isExporting.value = true;
+  try {
+    const params = new URLSearchParams();
+    if (filtroTexto.value) params.append('q', filtroTexto.value);
+    if (filtroOrdem.value) params.append('ordenar_por', filtroOrdem.value);
+
+    if (filtroCategorias.value && filtroCategorias.value.length > 0) {
+      filtroCategorias.value.forEach(id => {
+        params.append('categoria_id', id);
+      });
+    }
+
+    const response = await apiClient.get('/api/municipes/export/pdf/', { 
+        params: params,
+        responseType: 'blob' 
+    });
+    
+    // O resto é o mesmo código de download de blob
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `relatorio_contatos_${new Date().getTime()}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório PDF.', life: 3000 });
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const abrirDialogoCategoriaLote = () => {
+    novaCategoriaId.value = null; // Reseta a seleção anterior
+    dialogoCategoriaLoteVisivel.value = true;
+};
+
+const executarAtualizacaoCategoriaLote = async () => {
+    if (!novaCategoriaId.value || !municipesSelecionados.value || municipesSelecionados.value.length === 0) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione uma categoria e pelo menos um contato.', life: 3000 });
+        return;
+    }
+
+    isUpdatingCategoria.value = true;
+    const idsParaAtualizar = municipesSelecionados.value.map(m => m.id);
+
+    try {
+        const response = await apiClient.post('/api/municipes/atualizar-categoria-lote/', {
+            municipe_ids: idsParaAtualizar,
+            nova_categoria_id: novaCategoriaId.value
+        });
+
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.message, life: 4000 });
+        
+        // Atualiza a categoria dos itens selecionados na tela (para feedback visual imediato)
+        const categoriaSelecionada = categoriasContato.value.find(c => c.id === novaCategoriaId.value);
+        if (categoriaSelecionada) {
+             municipesNaTela.value.forEach(municipe => {
+                 if (idsParaAtualizar.includes(municipe.id)) {
+                     municipe.categoria = categoriaSelecionada; // Atualiza o objeto na lista local
+                 }
+             });
+              // Atualiza também na lista completa para consistência
+             todosMunicipes.value.forEach(municipe => {
+                 if (idsParaAtualizar.includes(municipe.id)) {
+                     municipe.categoria = categoriaSelecionada;
+                 }
+             });
+        }
+
+        // Limpa a seleção e fecha o diálogo
+        municipesSelecionados.value = []; 
+        dialogoCategoriaLoteVisivel.value = false;
+
+        // Opcional: Recarregar a lista inteira da API
+        // await aplicarFiltros(); 
+
+    } catch (error) {
+        const errorMsg = extractApiError(error); // Reutiliza sua função de extrair erro
+        toast.add({ severity: 'error', summary: 'Erro ao Atualizar', detail: errorMsg, life: 5000 });
+    } finally {
+        isUpdatingCategoria.value = false;
+    }
+};
 </script>
 
 <template>
@@ -372,33 +532,105 @@ const exportarExcel = async () => {
     <Toast />
     <header class="page-header">
       <h1>Agenda de Contatos</h1>
-      <Button label="Novo Contato" icon="pi pi-plus" @click="abrirDialogoParaCriacao" class="p-button-success" />
+      <div>
+        <Button label="Novo Contato" icon="pi pi-plus" @click="abrirDialogoParaCriacao" class="p-button-success mr-2" />
+        <Button 
+            label="Alterar Categoria em Lote" 
+            icon="pi pi-tags" 
+            class="p-button-info" 
+            @click="abrirDialogoCategoriaLote" 
+            :disabled="!municipesSelecionados || municipesSelecionados.length === 0" 
+        />
+      </div>
     </header>
 
-    <Card 
-        v-if="aniversariantes.length > 0 && !authStore.isRecepcao" 
-        class="mb-4 summary-card bg-green-100 text-green-800 cursor-pointer" 
-        @click="dialogoAniversariantesVisivel = true">
+    <Card class="mb-4 summary-card bg-green-100 text-green-800 cursor-pointer">
         <template #content>
-            <div class="flex align-items-center justify-content-center">
-                <i class="pi pi-gift text-2xl mr-3"></i>
-                <span class="font-bold">Hoje temos {{ aniversariantes.length }} aniversariante(s)! Clique para ver.</span>
+            <div class="flex align-items-center justify-content-between">
+                <Button 
+                    icon="pi pi-chevron-left" 
+                    class="p-button-rounded p-button-text text-green-800" 
+                    @click="buscarDiaAnterior"
+                    :disabled="isLoadingAniversariantes"
+                />
+                
+                <div class="flex flex-row align-items-center">
+                    <div class="font-medium">
+                      {{ dataAniversariantesFormatada }}
+                      <span v-if="ehHoje">(Hoje)</span>
+                    </div>
+                    <i class="pi pi-gift text-2xl ml-3"></i>
+                    <div v-if="isLoadingAniversariantes" class="mt-2">
+                      <ProgressSpinner style="width: 20px; height: 20px" strokeWidth="8" />
+                    </div>
+                    <div v-else>
+                      <Button 
+                        :label="`${aniversariantes.length} Aniversariante(s)`" 
+                        class="p-button-link font-bold text-green-800" 
+                        @click="dialogoAniversariantesVisivel = true"
+                        :disabled="aniversariantes.length === 0" 
+                      />
+                    </div>
+                </div>
+
+                <Button 
+                    icon="pi pi-chevron-right" 
+                    class="p-button-rounded p-button-text text-green-800" 
+                    @click="buscarDiaSeguinte"
+                    :disabled="isLoadingAniversariantes"
+                />
             </div>
         </template>
     </Card>
 
     <Card class="mb-4">
       <template #content>
-        <div class="grid formgrid p-fluid align-items-end gap-2">
-          <div class="field col">
+        <div class="grid formgrid p-fluid gap-2">
+          <div class="field col-6 p-0">
             <label for="filtroTexto">Buscar por Nome, CPF, Email, Cargo ou Órgão</label>
-            <InputText id="filtroTexto" v-model="filtroTexto" @keyup.enter="aplicarFiltros" placeholder="Digite para buscar..." />
+            <InputText id="filtroTexto" v-model="filtroTexto" @keyup.enter="aplicarFiltros" placeholder="Digite para buscar..." Fluid />
           </div>
-          <div class="field col-fixed flex gap-2">
+          <div class="field col-3 p-0">
+            <label for="filtroTexto">Filtrar Categoria(s)</label>
+            <MultiSelect 
+                v-model="filtroCategorias" 
+                :options="categoriasContato" 
+                optionLabel="nome" 
+                optionValue="id" 
+                placeholder="Filtrar por Categoria" 
+                display="chip" 
+                Fluid 
+            />
+          </div>
+          <div class="field col-2 p-0">
+            <label for="filtroTexto">Ordenar Relatório</label>
+            <Dropdown 
+                v-model="filtroOrdem" 
+                :options="ordemOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Ordenar por" 
+                Fluid 
+            />
+          </div>
+        </div>
+        <div class="grid formgrid gap-2">
             <Button label="Buscar" icon="pi pi-search" @click="aplicarFiltros" :loading="isLoading" />
-            <Button label="Limpar" icon="pi pi-times" @click="limparFiltros" class="p-button-secondary" />
-            <Button label="Exportar Excel" icon="pi pi-file-excel" class="p-button-success" @click="exportarExcel" :loading="isExporting" />
-          </div>
+            <Button label="Limpar" icon="pi pi-filter-slash" @click="limparFiltros" class="p-button-secondary" />
+            <Button 
+                label="Exportar Excel" 
+                icon="pi pi-file-excel" 
+                class="p-button-success" 
+                @click="exportarExcel"
+                :loading="isExporting"
+            />
+            <Button 
+                label="Exportar PDF" 
+                icon="pi pi-file-pdf" 
+                class="p-button-danger" 
+                @click="exportarPDF"
+                :loading="isExporting"
+            />
         </div>
       </template>
     </Card>
@@ -421,7 +653,20 @@ const exportarExcel = async () => {
     </div>
 
     <main>
-      <DataTable :value="municipesNaTela" :loading="isLoading" paginator :rows="15" responsiveLayout="scroll">
+      <div class="my-3 text-sm text-color-secondary">
+          Exibindo {{ municipesNaTela.length }} de {{ todosMunicipes.length }} contatos.
+      </div>
+
+      <DataTable 
+        :value="municipesNaTela"
+        v-model:selection="municipesSelecionados" dataKey="id"
+        :loading="isLoading" 
+        paginator :rows="15"
+        responsiveLayout="scroll"
+        stripedRows
+        size="small"
+      >
+        <Column selectionMode="multiple" headerStyle="width: 3em"></Column>
         <Column field="nome_completo" header="Nome" sortable>
           <template #body="slotProps">
             <a href="#" @click.prevent="irParaVisao360(slotProps.data.id)">
@@ -492,30 +737,55 @@ const exportarExcel = async () => {
     </main>
 
     <!-- Todos os Dialogs (Aniversariantes, Edição/Criação, Verificação de Duplicatas) permanecem os mesmos -->
-    <Dialog v-model:visible="dialogoAniversariantesVisivel" header="Aniversariantes do Dia" :modal="true">
-        <DataTable :value="aniversariantes" paginator :rows="5">
-            <Column field="nome_completo" header="Nome"></Column>
-            <Column field="cargo" header="Cargo/Órgão"></Column>
-            <Column header="Telefone">
-                <template #body="slotProps">
-                    <div class="flex align-items-center gap-2" v-if="slotProps.data.telefones && slotProps.data.telefones[0]">
-                        <span>{{ slotProps.data.telefones[0]?.numero }}</span>
-                        <Button icon="pi pi-copy" text rounded size="small" @click="copiarTexto(slotProps.data.telefones[0]?.numero)" />
-                    </div>
-                </template>
-            </Column>
-            <Column header="Email Principal">
-                <template #body="slotProps">
-                    <div class="flex align-items-center gap-2" v-if="slotProps.data.emails && slotProps.data.emails.length > 0">
-                        <span>{{ slotProps.data.emails[0].email }}</span>
-                        <Button icon="pi pi-copy" text rounded size="small" @click="copiarTexto(slotProps.data.emails[0].email)" title="Copiar Email" />
-                    </div>
-                </template>
-            </Column>
-        </DataTable>
+    <Dialog 
+        v-model:visible="dialogoCategoriaLoteVisivel" 
+        modal 
+        header="Alterar Categoria em Lote" 
+        :style="{ width: '30vw' }"
+        @hide="novaCategoriaId = null" >
+        <div class="p-fluid">
+            <div class="field">
+                <label for="novaCategoria">Selecione a nova Categoria para os {{ municipesSelecionados.length }} contato(s) selecionado(s):</label>
+                <Dropdown 
+                    id="novaCategoria"
+                    v-model="novaCategoriaId" 
+                    :options="categoriasContato" 
+                    optionLabel="nome" 
+                    optionValue="id" 
+                    placeholder="Selecione uma Categoria"
+                    filter
+                />
+            </div>
+        </div>
         <template #footer>
-            <Button label="Fechar" icon="pi pi-times" @click="dialogoAniversariantesVisivel = false" text />
+            <Button label="Cancelar" icon="pi pi-times" class="p-button-text" @click="dialogoCategoriaLoteVisivel = false" />
+            <Button 
+                label="Confirmar Alteração" 
+                icon="pi pi-check" 
+                @click="executarAtualizacaoCategoriaLote" 
+                :disabled="!novaCategoriaId || isUpdatingCategoria"
+                :loading="isUpdatingCategoria" 
+            />
         </template>
+    </Dialog>
+
+    <Dialog v-model:visible="dialogoAniversariantesVisivel" :header="`Aniversariantes do dia ${dataAniversariantesFormatada}`" modal :style="{ width: '1000px' }">
+        <DataTable :value="aniversariantes" size="small" paginator :rows="10">
+            <Column field="nome_completo" header="Nome" sortable></Column>
+            
+            <Column field="telefones" header="Telefone Principal">
+                <template #body="{ data }">
+                    {{ data.telefones && data.telefones.length > 0 ? data.telefones[0].numero : 'N/D' }}
+                </template>
+            </Column>
+
+            <Column field="emails" header="Email Principal">
+                <template #body="{ data }">
+                    {{ data.emails && data.emails.length > 0 && data.emails[0] ? data.emails[0].email : 'N/D' }}
+                </template>
+            </Column>
+            
+        </DataTable>
     </Dialog>
 
     <Dialog v-model:visible="dialogoVisivel" :style="{width: '800px'}" :header="municipeEmEdicao.id ? 'Editar Contato' : 'Novo Contato'" :modal="true" class="p-fluid">
