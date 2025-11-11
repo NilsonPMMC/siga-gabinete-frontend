@@ -654,7 +654,7 @@ const executarAtualizacaoCategoriaLote = async () => {
 
     <main>
       <div class="my-3 text-sm text-color-secondary">
-          Exibindo {{ municipesNaTela.length }} de {{ todosMunicipes.length }} contatos.
+          Exibindo {{ municipesNaTela.length }} contato(s).
       </div>
 
       <DataTable 
@@ -772,6 +772,7 @@ const executarAtualizacaoCategoriaLote = async () => {
     <Dialog v-model:visible="dialogoAniversariantesVisivel" :header="`Aniversariantes do dia ${dataAniversariantesFormatada}`" modal :style="{ width: '1000px' }">
         <DataTable :value="aniversariantes" size="small" paginator :rows="10">
             <Column field="nome_completo" header="Nome" sortable></Column>
+            <Column field="cargo" header="Cargo"></Column>
             
             <Column field="telefones" header="Telefone Principal">
                 <template #body="{ data }">

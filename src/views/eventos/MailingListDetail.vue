@@ -14,6 +14,7 @@
                 </div>
             </div>
             <div class="flex align-items-center gap-2">
+                <Button label="Exportar CSV" icon="pi pi-download" class="p-button-success" @click="exportarMailingListCSV(mailingList.id, mailingList.nome)" />
                 <Button label="Adicionar por Categoria" icon="pi pi-users" class="p-button-info" @click="abrirDialogoCategoria" />
                 <Button label="Adicionar Contato" icon="pi pi-plus" class="p-button-success" @click="abrirDialogoAdicionar" />
             </div>
@@ -91,6 +92,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import apiClient from '@/api';
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 import eventosService from '@/services/eventos';
@@ -223,6 +225,36 @@ const getEmailPrincipal = (emails) => {
     }
     const principal = emails.find(e => e.tipo === 'principal');
     return principal ? principal.email : emails[0].email;
+};
+
+const exportarMailingListCSV = async (mailingListId, mailingListName) => {
+    // isExporting.value = true; // (Se tiver um loading)
+    try {
+        const response = await apiClient.get(`/api/mailing-list/${mailingListId}/export/csv/`, {
+            responseType: 'blob', // Importante para download de arquivos
+        });
+        
+        // Lógica padrão de download de arquivo blob
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv; charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // Cria um nome de arquivo seguro
+        const fileName = `mailing_list_${mailingListName.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'export'}.csv`;
+        link.setAttribute('download', fileName);
+        
+        document.body.appendChild(link);
+        link.click();
+        
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+    } catch (error) {
+        console.error("Erro ao exportar CSV:", error);
+        // toast.add({ ... });
+    } finally {
+        // isExporting.value = false;
+    }
 };
 </script>
 
