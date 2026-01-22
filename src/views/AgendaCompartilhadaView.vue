@@ -4,25 +4,31 @@ import { useRoute } from 'vue-router';
 import apiClient from '@/api';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
+import { format } from 'date-fns'; // <--- IMPORTANTE: Instalar/Importar date-fns
 
 import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-const authStore = useAuthStore();
 
+const authStore = useAuthStore();
 const isLoading = ref(true);
 const toast = useToast();
 const route = useRoute();
-const contaId = route.params.id;
+const contaId = route.params.id; // Esse é o agenda_id
 const nomeAgenda = ref('');
 
-// --- NOVO: Variáveis para controlar o modal de detalhes ---
+// --- ESTADOS DE IMPRESSÃO (NOVO) ---
+const showDateDialog = ref(false);
+const datasSelecionadas = ref(null);
+const isDownloading = ref(false);
+// -----------------------------------
+
+// Variáveis para controlar o modal de detalhes
 const detalheEventoVisivel = ref(false);
 const eventoSelecionado = ref(null);
-// --- FIM DA ADIÇÃO ---
 
-// --- NOVO: Função para formatar data e hora ---
+// Função para formatar data e hora do detalhe
 const formatarPeriodoEvento = computed(() => {
     if (!eventoSelecionado.value || !eventoSelecionado.value.start) return { data: '', horario: '' };
 
@@ -30,7 +36,7 @@ const formatarPeriodoEvento = computed(() => {
     const optionsHora = { hour: '2-digit', minute: '2-digit', hour12: false };
 
     const dataInicio = new Date(eventoSelecionado.value.start);
-    const dataFim = new Date(eventoSelecionado.value.end);
+    const dataFim = new Date(eventoSelecionado.value.end || eventoSelecionado.value.start); // Fallback se não tiver fim
 
     const dataFormatada = new Intl.DateTimeFormat('pt-BR', optionsData).format(dataInicio);
 
@@ -43,20 +49,19 @@ const formatarPeriodoEvento = computed(() => {
 
     return { data: dataFormatada, horario: `${horaInicio} às ${horaFim}` };
 });
-// --- FIM DA ADIÇÃO ---
 
-// --- NOVO: Função chamada ao clicar em um evento ---
 const handleEventClick = (clickInfo) => {
     eventoSelecionado.value = {
         title: clickInfo.event.title,
         start: clickInfo.event.start,
         end: clickInfo.event.end,
         allDay: clickInfo.event.allDay,
+        location: clickInfo.event.extendedProps.location, // Garante que pegue props estendidas
+        description: clickInfo.event.extendedProps.description,
         ...clickInfo.event.extendedProps
     };
     detalheEventoVisivel.value = true;
 };
-// --- FIM DA ADIÇÃO ---
 
 const calendarOptions = ref({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -70,7 +75,7 @@ const calendarOptions = ref({
   slotMaxTime: '22:00:00',
   selectable: false,
   editable: false,
-  eventClick: handleEventClick, // <-- AJUSTE AQUI: Diz ao calendário para usar nossa nova função
+  eventClick: handleEventClick,
 });
 
 onMounted(async () => {
@@ -83,6 +88,7 @@ onMounted(async () => {
     const response = await apiClient.get(`/api/agendas-compartilhadas/${contaId}/`);
     calendarOptions.value.events = response.data;
     
+    // Busca o nome da conta para exibir no título
     const contaResponse = await apiClient.get(`/api/contas/`);
     const conta = contaResponse.data.find(c => c.id == contaId);
     if (conta) {
@@ -96,6 +102,66 @@ onMounted(async () => {
     isLoading.value = false;
   }
 });
+
+// --- FUNÇÕES DE IMPRESSÃO (NOVO) ---
+const abrirDialogoImpressao = () => {
+    console.log("--- DEBUG: Botão Imprimir Clicado ---");
+    
+    // Define padrão: Data atual
+    const hoje = new Date();
+    datasSelecionadas.value = [hoje, hoje];
+    
+    console.log("1. Definindo datas padrão:", datasSelecionadas.value);
+    
+    showDateDialog.value = true;
+    
+    console.log("2. Alterei showDateDialog para TRUE. Valor atual:", showDateDialog.value);
+};
+
+const confirmarImpressao = async () => {
+    if (!datasSelecionadas.value || !datasSelecionadas.value[0]) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione pelo menos uma data.', life: 3000 });
+        return;
+    }
+
+    const dataInicio = datasSelecionadas.value[0];
+    const dataFim = datasSelecionadas.value[1] ? datasSelecionadas.value[1] : dataInicio;
+
+    showDateDialog.value = false;
+    isDownloading.value = true;
+    
+    toast.add({ severity: 'info', summary: 'Gerando PDF', detail: 'Aguarde...', life: 2000 });
+
+    try {
+        const response = await apiClient.get('/api/relatorios/google/agenda-pdf/', {
+            params: { 
+                agenda_id: contaId, // ID da conta vindo da URL
+                data_inicio: format(dataInicio, 'yyyy-MM-dd'),
+                data_fim: format(dataFim, 'yyyy-MM-dd')
+            },
+            responseType: 'blob'
+        });
+
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        const link = document.createElement('a');
+        link.href = url;
+        const nomeArquivo = `Agenda_${nomeAgenda.value.replace(/\s+/g, '_')}_${format(dataInicio, 'dd-MM')}.pdf`;
+        link.setAttribute('download', nomeArquivo);
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Download iniciado.', life: 3000 });
+
+    } catch (error) {
+        console.error(error);
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao gerar o PDF.', life: 4000 });
+    } finally {
+        isDownloading.value = false;
+    }
+};
 </script>
 
 <template>
@@ -104,9 +170,7 @@ onMounted(async () => {
 
     <Dialog v-model:visible="detalheEventoVisivel" header="Detalhes do Compromisso" :modal="true" :style="{width: '500px'}">
         <div v-if="eventoSelecionado" class="event-details">
-            
             <h2 class="event-title">{{ eventoSelecionado.title }}</h2>
-
             <div class="detail-item">
                 <i class="pi pi-calendar"></i>
                 <span>{{ formatarPeriodoEvento.data }}</span>
@@ -124,21 +188,55 @@ onMounted(async () => {
                 <p v-html="eventoSelecionado.description.replace(/\n/g, '<br>')"></p>
             </div>
         </div>
-
         <template #footer>
             <Button label="Fechar" icon="pi pi-times" @click="detalheEventoVisivel = false" autofocus />
         </template>
     </Dialog>
 
-    <header class="page-header">
+    <Dialog v-model:visible="showDateDialog" header="Imprimir Agenda" :modal="true" :style="{ width: '450px' }">
+        <div class="p-fluid">
+            <div class="field">
+                <label for="range">Selecione o Período</label>
+                <Calendar 
+                    id="range" 
+                    v-model="datasSelecionadas" 
+                    selectionMode="range" 
+                    :manualInput="false" 
+                    dateFormat="dd/mm/yy" 
+                    placeholder="Início e Fim"
+                    showIcon
+                />
+                <small class="block mt-2 text-500">
+                    O relatório aplicará automaticamente os filtros de privacidade do seu perfil.
+                </small>
+            </div>
+        </div>
+        <template #footer>
+            <Button label="Cancelar" icon="pi pi-times" text @click="showDateDialog = false" />
+            <Button label="Baixar PDF" icon="pi pi-print" @click="confirmarImpressao" :loading="isDownloading" autofocus />
+        </template>
+    </Dialog>
+
+    <header class="page-header flex justify-content-between align-items-center">
       <div class="flex align-items-center gap-3">
         <router-link to="/agendas-compartilhadas">
           <Button icon="pi pi-arrow-left" severity="secondary" text rounded />
         </router-link>
         <div>
-          <h1 class="mb-0">Agenda de {{ nomeAgenda || '...' }}</h1>
-          <p class="mt-1 text-color-secondary">Visualização de compromissos da equipe.</p>
+          <h1 class="mb-0 text-2xl">Agenda: {{ nomeAgenda || '...' }}</h1>
+          <p class="mt-1 text-sm text-color-secondary">Visualização detalhada.</p>
         </div>
+      </div>
+      
+      <div>
+        <Button 
+            label="Imprimir" 
+            icon="pi pi-print" 
+            @click="abrirDialogoImpressao" 
+            :loading="isDownloading"
+            severity="secondary"
+            outlined
+        />
       </div>
     </header>
 
@@ -160,7 +258,6 @@ onMounted(async () => {
 .page-container { padding: 2rem; }
 .page-header { margin-bottom: 2rem; }
 
-/* --- NOVO CSS para os detalhes do evento --- */
 .event-details .event-title {
     font-size: 1.5rem;
     font-weight: 600;
@@ -182,7 +279,7 @@ onMounted(async () => {
 .event-details .detail-item.description p {
     margin: 0;
     line-height: 1.5;
-    white-space: pre-wrap; /* Preserva quebras de linha e espaços */
+    white-space: pre-wrap; 
 }
 .no-underline {
     text-decoration: none;

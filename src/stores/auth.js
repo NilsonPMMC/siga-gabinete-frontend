@@ -18,6 +18,20 @@ export const useAuthStore = defineStore('auth', {
     isRecepcao: (state) => state.userGroups.includes('Recepção'),
     isMembro: (state) => state.userGroups.includes('Membro do Gabinete'),
     isSecretaria: (state) => state.userGroups.includes('Secretária'),
+    isUsuarioEstritamenteEscalas: (state) => {
+      const user = state.user;
+      if (!user) return false;
+      
+      const groups = user.groups || [];
+      
+      const temEscalas = groups.includes('Escalas');
+      const ehChefe = groups.includes('Gestor de Escalas') || 
+                      groups.includes('Membro do Gabinete') || 
+                      groups.includes('Secretária') || 
+                      user.is_superuser;
+                      
+      return temEscalas && !ehChefe;
+    },
     canManageEventos: (state) => {
       if (!state.user) {
         return false;
@@ -38,6 +52,15 @@ export const useAuthStore = defineStore('auth', {
       if (state.user.is_superuser) return true;
       // Verifica se a permissão específica existe na lista de permissões do usuário
       return state.user.user_permissions?.includes('oficios.pode_gerenciar_oficios') || false;
+    },
+    canViewEscalas: (state) => {
+      const user = state.user;
+      if (!user) return false;
+      
+      // Vê o menu se for Superuser OU se tiver nos grupos permitidos
+      return user.is_superuser || 
+             user.groups.includes('Gestor de Escalas') || 
+             user.groups.includes('Escalas');
     },
   },
 

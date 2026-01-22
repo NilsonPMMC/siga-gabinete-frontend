@@ -22,6 +22,11 @@ import GoogleAgendaView from '@/views/GoogleAgendaView.vue';
 import AgendasCompartilhadasListView from '@/views/AgendasCompartilhadasListView.vue';
 import AgendaCompartilhadaView from '@/views/AgendaCompartilhadaView.vue';
 import AtendimentoListView from '@/views/AtendimentoListView.vue';
+import BiAnalyticsView from '../views/BiAnalyticsView.vue';
+import AgendaInstitucionalManager from '../views/agenda/AgendaInstitucionalManager.vue';
+import VisaoDiaRecepcao from '../views/agenda/VisaoDiaRecepcao.vue';
+import BiEventosView from '../views/eventos/bi/BiEventosView.vue';
+import EscalasView from '../views/escalas/EscalasView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -175,35 +180,72 @@ const router = createRouter({
       props: true, // Isso faz com que o :id da URL seja passado como prop para o componente
       meta: { requiresAuth: true }
     },
+    {
+      path: '/bi-analytics',
+      name: 'bi-analytics',
+      component: BiAnalyticsView,
+      meta: { requiresAuth: true } // Garante proteção
+    },
+    {
+      path: '/agenda-institucional',
+      name: 'agenda-institucional',
+      component: AgendaInstitucionalManager,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/agenda-recepcao',
+      name: 'agenda-recepcao',
+      component: VisaoDiaRecepcao,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/eventos/bi',
+      name: 'eventos-bi',
+      component: BiEventosView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/escalas',
+      name: 'escalas',
+      component: EscalasView,
+      meta: { requiresAuth: true }
+    },
   ]
 })
 
-router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore()
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore();
+  
+  // Garante que o usuário está carregado antes de decidir
+  // (Dependendo de como seu auth funciona, talvez precise de um await authStore.checkAuth())
+  const user = authStore.user;
 
-  // 1. Verifica se a rota exige autenticação
-  if (to.meta.requiresAuth) {
-    // 1a. Se não estiver autenticado, vai para o login
-    if (!authStore.isAuthenticated) {
-      return next({ name: 'login' })
-    }
-
-    // 1b. Se a rota exige uma permissão específica
-    if (to.meta.permission) {
-      // Usamos nosso getter da store! Se não tiver a permissão, acesso negado.
-      if (!authStore[to.meta.permission]) {
-        // Você pode criar uma rota 'acesso-negado' ou simplesmente redirecionar para o dashboard
-        return next({ name: 'dashboard' }) 
-      }
-    }
-    
-    // Se passou por todas as verificações, permite o acesso
-    return next()
-
-  } else {
-    // Se a rota não exige autenticação, permite o acesso direto
-    return next()
+  // Se a rota exige login e não tem usuário...
+  if (to.meta.requiresAuth && !user) {
+      next('/login');
+      return;
   }
-})
+
+  // --- LÓGICA DE REDIRECIONAMENTO INTELIGENTE ---
+  // Se o usuário está tentando ir para a Home/Dashboard ('/')
+  if (to.path === '/' && user) {
+      
+      // Verifica se é um usuário ESTRITAMENTE OPERACIONAL de Escalas
+      const isApenasEscalas = 
+          user.groups.includes('Escalas') &&         // Tem o grupo Escalas
+          !user.groups.includes('Gestor de Escalas') && // NÃO é Gestor
+          !user.groups.includes('Membro do Gabinete') &&
+          !user.groups.includes('Secretária') &&       // NÃO é Gabinete
+          !user.is_superuser;                        // NÃO é Admin
+
+      if (isApenasEscalas) {
+          // Desvia o trânsito direto para o módulo dele
+          next('/escalas'); 
+          return;
+      }
+  }
+  
+  next();
+});
 
 export default router

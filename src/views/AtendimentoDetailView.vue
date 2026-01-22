@@ -204,7 +204,7 @@ const gerarPdfDetalhado = async () => {
       <Card>
         <template #title>
           <div class="card-title">
-            <span>Protocolo: {{ atendimento.protocolo }}</span>
+            <span>Protocolo: {{ atendimento.protocolo }} - {{ atendimento.titulo }}</span>
             <Tag :value="atendimento.status" :severity="getStatusSeverity(atendimento.status)" />
           </div>
         </template>
@@ -220,13 +220,11 @@ const gerarPdfDetalhado = async () => {
               class="p-button-secondary p-button-text" 
               size="small" 
             />
-
-            <h3 class="ml-2">{{ atendimento.titulo }}</h3>
           </div>
         </template>
         <template #content>
           <div class="grid">
-            <div class="col-12 md:col-4">
+            <div class="col-12 md:col-3">
               <div class="p-fluid">
                 <h4>Gerenciar Atendimento</h4>
                 <div class="field">
@@ -240,14 +238,20 @@ const gerarPdfDetalhado = async () => {
                 <Button label="Salvar Alterações" icon="pi pi-save" @click="salvarAlteracoes" class="mt-2" />
               </div>
 
-              <hr>
-
-              <h4>Detalhes do Solicitante</h4>
-              <p><strong>Munícipe:</strong> {{ atendimento.nome_municipe }}</p>
-              <p><strong>Gabinete:</strong> {{ atendimento.nome_conta }}</p>
             </div>
 
-            <div class="col-12 md:col-8">
+            <div class="col-12 md:col-9">
+              <h4>Detalhes do Solicitante</h4>
+              <p class="m-0">
+                <strong>Data:</strong> 
+                {{ atendimento.data_criacao ? new Date(atendimento.data_criacao).toLocaleDateString('pt-BR') : 'N/A' }}
+              </p>
+              <p class="m-0"><strong>Munícipe:</strong> {{ atendimento.nome_municipe }}</p>
+              <p class="m-0"><strong>Gabinete:</strong> {{ atendimento.nome_conta }}</p>
+              <p class="m-0 uppercase"><strong>Responsável:</strong> {{ atendimento.responsavel_nome }}</p>
+
+              <hr>
+
               <h4>Descrição Completa</h4>
               <p style="white-space: pre-wrap;">{{ atendimento.descricao }}</p>
 

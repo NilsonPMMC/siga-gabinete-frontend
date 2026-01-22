@@ -1,52 +1,41 @@
 <script setup>
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import PanelMenu from 'primevue/panelmenu';
 
 const authStore = useAuthStore();
 
-// Define os itens do menu com as mesmas regras de visibilidade que você já usa
-const model = ref([
+const rawItems = [
     {
         label: 'Início',
-        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }]
+        items: [
+                { 
+                    label: 'Dashboard',
+                    icon: 'pi pi-fw pi-home',
+                    to: '/',
+                    visible: () => !authStore.isUsuarioEstritamenteEscalas
+                }
+            ]
     },
     {
         label: 'Módulos',
         items: [
-            {   label: 'Atendimentos',
+            {   
+                label: 'Atendimentos',
                 icon: 'pi pi-fw pi-inbox',
-                to: '/atendimentos',
-                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
-            },
-            {   label: 'Lembretes',
-                icon: 'pi pi-fw pi-book',
-                to: '/lembretes',
-                visible: () => authStore.isSecretaria || authStore.user?.is_superuser
-            },
-            {  
-                label: 'Eventos',  
-                icon: 'pi pi-fw pi-calendar', // Ícone de calendário, por exemplo 
-                to: '/eventos',
-                // A mágica acontece aqui, usando nosso novo getter!
-                visible: () => authStore.canManageEventos 
-            },
-            {
-                label: 'Etiquetas',
-                icon: 'pi pi-fw pi-tag',
-                to: '/etiquetas',
-            },
-            {
-                label: 'Ofícios',
-                icon: 'pi pi-fw pi-file-edit', // Ícone de arquivo/edição
-                to: '/oficios',
-                // Usa o novo getter para controlar a visibilidade
-                visible: () => authStore.canManageOficios 
-            },
-            { 
-                label: 'Check-in', 
-                icon: 'pi pi-fw pi-map-marker', 
-                to: '/checkins',
-                visible: () => authStore.isRecepcao || authStore.user?.is_superuser
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro,
+                items: [
+                    {
+                        label: 'Lista de Atendimentos',
+                        icon: 'pi pi-fw pi-list',
+                        to: '/atendimentos'
+                    },
+                    {
+                        label: 'Painel BI',
+                        icon: 'pi pi-fw pi-chart-bar',
+                        to: '/bi-analytics'
+                    }
+                ]
             },
             { 
                 label: 'Solicitações de Agenda', 
@@ -54,29 +43,102 @@ const model = ref([
                 to: '/agendas',
                 visible: () => authStore.isSecretaria || authStore.user?.is_superuser
             },
+            {   
+                label: 'Eventos',
+                icon: 'pi pi-fw pi-megaphone',
+                visible: () => authStore.canManageEventos,
+                items: [
+                    {
+                        label: 'Gestão de Eventos',
+                        icon: 'pi pi-fw pi-calendar',
+                        to: '/eventos'
+                    },
+                    {
+                        label: 'Painel BI',
+                        icon: 'pi pi-fw pi-chart-bar',
+                        to: '/eventos/bi',
+                    }
+                ]
+            },
+            {   
+                label: 'Contatos',
+                icon: 'pi pi-fw pi-users',
+                visible: () => authStore.isRecepcao || authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro,
+                items: [
+                    { 
+                        label: 'Agenda', 
+                        icon: 'pi pi-fw pi-users', 
+                        to: '/contatos' 
+                    },
+                    {
+                        label: 'Duplicados', 
+                        icon: 'pi pi-fw pi-users', 
+                        to: '/gestao-duplicatas',
+                        visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+                    },
+                    {
+                        label: 'Mailing', 
+                        icon: 'pi pi-fw pi-envelope', 
+                        to: '/mailings',
+                        visible: () => authStore.canManageEventos 
+                    }
+                ]
+            },
+            {
+                label: 'Escalas',
+                icon: 'pi pi-fw pi-clock', // Ícone sugestivo de "Turno/Tempo"
+                visible: () => authStore.canViewEscalas, // Usa a lógica que criamos acima
+                items: [
+                    {
+                        label: 'Painel de Plantão',
+                        icon: 'pi pi-fw pi-th-large', // Ícone de Dashboard/Painel
+                        to: '/escalas'
+                    }
+                    // Futuramente, se tiver relatórios específicos, entram aqui
+                ]
+            },
+            { 
+                label: 'Agenda Institucional', 
+                icon: 'pi pi-fw pi-calendar', 
+                to: '/agenda-institucional',
+                visible: () => authStore.isSecretaria || authStore.isMembro || authStore.user?.is_superuser
+            },
             { 
                 label: 'Gestão de Espaços', 
                 icon: 'pi pi-fw pi-building', 
                 to: '/espacos',
                 visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
             },
-            { 
-                label: 'Contatos', 
-                icon: 'pi pi-fw pi-users', 
-                to: '/contatos' 
+            {
+                label: 'Etiquetas',
+                icon: 'pi pi-fw pi-tag',
+                to: '/etiquetas',
+                visible: () => authStore.isSecretaria || authStore.isMembro || authStore.user?.is_superuser
+            },
+            {   
+                label: 'Lembretes',
+                icon: 'pi pi-fw pi-book',
+                to: '/lembretes',
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser
+            },
+            {
+                label: 'Ofícios',
+                icon: 'pi pi-fw pi-file-edit',
+                to: '/oficios',
+                visible: () => authStore.canManageOficios 
+            },
+            {
+                label: 'Agenda',
+                icon: 'pi pi-fw pi-calendar',
+                to: '/agenda-recepcao',
+                visible: () => authStore.isRecepcao || authStore.isSuperuser
             },
             { 
-                label: 'Gestão de Duplicatas', 
-                icon: 'pi pi-fw pi-users', 
-                to: '/gestao-duplicatas',
-                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
-            },
-            { 
-                label: 'Mailing', 
-                icon: 'pi pi-fw pi-envelope', 
-                to: '/mailings',
-                visible: () => authStore.canManageEventos 
-            },
+                label: 'Check-in', 
+                icon: 'pi pi-fw pi-map-marker', 
+                to: '/checkins',
+                visible: () => authStore.isRecepcao || authStore.user?.is_superuser
+            }
         ]
     },
     {
@@ -92,7 +154,7 @@ const model = ref([
                 label: 'Agendas da Equipe',
                 icon: 'pi pi-fw pi-google',
                 to: '/agendas-compartilhadas',
-                visible: () => authStore.isMembro // Ajuste a permissão conforme necessário
+                visible: () => authStore.isMembro
              }
         ]
     },
@@ -113,36 +175,65 @@ const model = ref([
             }
         ]
     }
-]);
+];
+
+const model = computed(() => {
+    const filtrarItens = (itens) => {
+        return itens
+            .filter(item => {
+                return item.visible === undefined || (typeof item.visible === 'function' ? item.visible() : item.visible);
+            })
+            .map(item => {
+                const novoItem = { ...item };
+                if (item.items) {
+                    novoItem.items = filtrarItens(item.items);
+                }
+                return novoItem;
+            });
+    };
+    return filtrarItens(rawItems);
+});
 </script>
 
 <template>
-    <Menu :model="model" class="w-full">
-        <template #submenulabel="{ item }">
-            <span class="text-primary font-bold">{{ item.label }}</span>
-        </template>
+    <PanelMenu :model="model" class="w-full border-none">
         <template #item="{ item, props }">
-             <router-link v-if="item.to && (item.visible === undefined || item.visible())" :to="item.to" v-bind="props.action" class="flex align-items-center p-2">
-                <span :class="item.icon" />
-                <span class="ml-2">{{ item.label }}</span>
+             <router-link 
+                v-if="item.to" 
+                :to="item.to" 
+                v-bind="props.action" 
+                class="flex align-items-center p-3 text-700 hover:surface-100 font-medium border-round cursor-pointer transition-colors transition-duration-150 w-full"
+                active-class="surface-200 text-primary"
+             >
+                <span :class="item.icon" class="mr-2" />
+                <span>{{ item.label }}</span>
             </router-link>
+
+            <a 
+                v-else 
+                v-bind="props.action" 
+                class="flex align-items-center p-3 text-700 hover:surface-100 font-medium border-round cursor-pointer transition-colors transition-duration-150 w-full select-none"
+                tabindex="0"
+            >
+                <span :class="item.icon" class="mr-2" />
+                <span class="flex-1">{{ item.label }}</span>
+                <i v-if="item.items" class="pi pi-angle-down text-sm" :class="{ 'rotate-180': item.expanded }"></i>
+            </a>
         </template>
-    </Menu>
+    </PanelMenu>
 </template>
 
 <style scoped>
-/* Estilo para garantir que o link ocupe todo o espaço do item de menu */
-a {
-    color: var(--text-color);
-    text-decoration: none;
-    border-radius: 6px;
+:deep(.p-panelmenu .p-panelmenu-header-content),
+:deep(.p-panelmenu .p-panelmenu-content) {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
 }
-a:hover {
-    background-color: var(--surface-hover);
+:deep(.p-panelmenu-panel) {
+    margin-bottom: 0.5rem;
 }
-.router-link-exact-active {
-    background-color: var(--surface-200); /* Usa uma cor de fundo neutra e sutil */
-    color: var(--primary-color); /* Altera a cor do TEXTO para a cor primária (ex: azul) */
-    font-weight: 700; /* Adiciona negrito para dar mais destaque */
+:deep(.p-panelmenu-content .p-menuitem-link) {
+    padding-left: 2rem !important; 
 }
 </style>

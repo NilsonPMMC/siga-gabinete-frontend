@@ -43,13 +43,7 @@
                     </template>
                     <template #empty>Nenhuma presença registrada para este evento.</template>
                     
-                    <Column field="nome_completo" header="Nome" sortable>
-                        <template #body="slotProps">
-                            <RouterLink :to="`/contatos/editar/${slotProps.data.municipe_id}`">
-                            {{ slotProps.data.nome_completo }}
-                            </RouterLink>
-                        </template>
-                    </Column>
+                    <Column field="nome_completo" header="Nome" sortable></Column>
                     <Column field="telefone" header="Telefone"></Column>
                     <Column field="email" header="E-mail"></Column>
                     <Column field="instituicao_orgao" header="Instituição/Órgão"></Column>
@@ -58,9 +52,26 @@
                             {{ new Date(slotProps.data.data_registro).toLocaleString('pt-BR') }}
                         </template>
                     </Column>
+                    <Column header="Ações" style="width: 10rem">
+                        <template #body="slotProps">
+                            <Button 
+                                icon="pi pi-user-edit" 
+                                text 
+                                rounded 
+                                severity="info"
+                                @click="abrirEdicao(slotProps.data.municipe_id)" 
+                                v-tooltip="'Editar Cadastro'"
+                            />
+                        </template>
+                    </Column>
                 </DataTable>
             </div>
         </main>
+        <MunicipeFormModal 
+            v-model:visible="showEditModal" 
+            :municipeId="selectedMunicipeId" 
+            @saved="aoSalvarMunicipe" 
+        />
     </div>
 </template>
 
@@ -70,6 +81,7 @@ import { useRoute, useRouter } from 'vue-router';
 import eventosService from '@/services/eventos';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
+import MunicipeFormModal from '@/components/municipes/MunicipeFormModal.vue';
 
 import AutoComplete from 'primevue/autocomplete';
 import Toolbar from 'primevue/toolbar';
@@ -92,6 +104,8 @@ const router = useRouter();
 const toast = useToast();
 const eventoId = route.params.id;
 const authStore = useAuthStore();
+const showEditModal = ref(false);
+const selectedMunicipeId = ref(null);
 
 const loading = ref(true);
 const exportando = ref(false);
@@ -131,6 +145,16 @@ const carregarDados = async () => {
 };
 
 onMounted(carregarDados);
+
+const abrirEdicao = (id) => {
+    selectedMunicipeId.value = id;
+    showEditModal.value = true;
+};
+
+const aoSalvarMunicipe = () => {
+    // Recarrega a lista de presença para mostrar foto/nome atualizado
+    carregarListaPresenca(); 
+};
 
 const exportar = async () => {
     exportando.value = true;

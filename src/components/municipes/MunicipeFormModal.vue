@@ -1,0 +1,393 @@
+<template>
+  <Dialog 
+    v-model:visible="dialogVisible" 
+    :header="pageTitle" 
+    :modal="true" 
+    :style="{ width: '900px' }"
+    :breakpoints="{ '960px': '95vw' }"
+    @show="carregarDados"
+    @hide="resetForm"
+    class="p-fluid"
+    maximizable 
+  >
+    <div v-if="isLoading" class="flex flex-column align-items-center justify-content-center p-6">
+      <ProgressSpinner />
+      <p class="mt-3 text-gray-600">Carregando ficha do munícipe...</p>
+    </div>
+
+    <div v-else>
+      <div class="grid formgrid">
+        
+        <div class="col-12 md:col-3 flex flex-column align-items-center justify-content-start pt-2 mt-3">
+            <div class="relative">
+                <Avatar 
+                    :image="fotoPreviewUrl || '/images/avatar-placeholder.png'" 
+                    size="xlarge" 
+                    shape="circle" 
+                    class="w-8rem h-8rem shadow-2 surface-card"
+                    style="border: 4px solid white"
+                />
+                <Button 
+                    icon="pi pi-camera" 
+                    rounded 
+                    severity="primary"
+                    class="absolute bottom-0 right-0 shadow-2"
+                    style="transform: translate(25%, 25%)"
+                    @click="fotoCaptureComponent.abrirCamera()"
+                    v-tooltip="'Alterar Foto'"
+                />
+            </div>
+
+            <FotoCapture 
+                ref="fotoCaptureComponent" 
+                @foto-salva="onFotoCapturada" 
+            />
+            
+            <small class="text-500" v-if="!fotoPreviewUrl">Toque no ícone de câmera para adicionar uma foto.</small>
+        </div>
+
+        <div class="col-12 md:col-9 mt-3">
+            <div class="grid">
+                <div class="field col-12">
+                    <label for="nome" class="font-bold">Nome Completo *</label>
+                    <InputText id="nome" v-model="municipe.nome_completo" autofocus />
+                </div>
+                
+                <div class="field col-12 md:col-6">
+                    <label for="apelido">Nome Social / Apelido</label>
+                    <InputText id="apelido" v-model="municipe.nome_de_guerra" />
+                </div>
+                
+                <div class="field col-12 md:col-6">
+                    <label for="categoria" class="font-bold">Categoria *</label>
+                    <Dropdown id="categoria" v-model="municipe.categoria" :options="categoriasContato" optionLabel="nome" optionValue="id" placeholder="Selecione..." />
+                </div>
+
+                <div class="field col-6 md:col-4">
+                    <label for="cpf">CPF</label>
+                    <InputMask id="cpf" v-model="municipe.cpf" mask="999.999.999-99" />
+                </div>
+                
+                <div class="field col-6 md:col-4">
+                    <label for="nascimento">Nascimento</label>
+                    <Calendar id="nascimento" v-model="municipe.data_nascimento" dateFormat="dd/mm/yy" showIcon />
+                </div>
+
+                <div class="field col-12 md:col-4">
+                    <label for="tratamento">Tratamento</label>
+                    <InputText id="tratamento" v-model="municipe.tratamento" placeholder="Ex: Sr., Dr." />
+                </div>
+
+                <div class="field col-12 md:col-6">
+                    <label for="cargo">Cargo / Profissão</label>
+                    <InputText id="cargo" v-model="municipe.cargo" />
+                </div>
+                
+                <div class="field col-12 md:col-6">
+                    <label for="orgao">Órgão / Empresa</label>
+                    <InputText id="orgao" v-model="municipe.orgao" />
+                </div>
+
+                <div v-if="authStore.isSuperuser" class="field col-12">
+                    <label for="contas">Visibilidade (Gabinete)</label>
+                    <MultiSelect id="contas" v-model="municipe.contas" :options="contas" optionLabel="nome" optionValue="id" display="chip" placeholder="Padrão: Apenas meu gabinete" />
+                </div>
+            </div>
+        </div>
+      </div>
+
+      <Divider align="center" type="dashed">
+          <span class="p-tag bg-gray-200 text-gray-700">Informações de Contato</span>
+      </Divider>
+
+      <div class="grid">
+        
+        <div class="col-12 md:col-6 pr-3 border-right-1 border-gray-200 md:border-right-1 surface-border">
+            <h4 class="text-base text-700 font-medium mb-3"><i class="pi pi-phone mr-2"></i>Meios de Contato</h4>
+            
+            <div v-for="(tel, i) in municipe.telefones" :key="'tel'+i" class="flex gap-2 mb-2">
+                <Dropdown v-model="tel.tipo" :options="tiposDeTelefone" optionLabel="label" optionValue="value" class="w-8rem" />
+                <InputText v-model="tel.numero" placeholder="(00) 00000-0000" class="flex-1" @blur="formatarTelefone(i)" />
+                <Button icon="pi pi-trash" text severity="danger" @click="removerTelefone(i)" :disabled="municipe.telefones.length === 1" />
+            </div>
+            <Button label="Adicionar Telefone" icon="pi pi-plus" text size="small" @click="adicionarTelefone" class="mb-3" />
+
+            <div v-for="(mail, i) in municipe.emails" :key="'mail'+i" class="flex gap-2 mb-2">
+                <Dropdown v-model="mail.tipo" :options="tiposDeEmail" optionLabel="label" optionValue="value" class="w-8rem" />
+                <InputText v-model="mail.email" placeholder="email@exemplo.com" class="flex-1" />
+                <Button icon="pi pi-trash" text severity="danger" @click="removerEmail(i)" :disabled="municipe.emails.length === 1" />
+            </div>
+            <Button label="Adicionar Email" icon="pi pi-plus" text size="small" @click="adicionarEmail" />
+        </div>
+
+        <div class="col-12 md:col-6 pl-3">
+            <h4 class="text-base text-700 font-medium mb-3"><i class="pi pi-map-marker mr-2"></i>Endereço</h4>
+            
+            <div class="grid">
+                <div class="field col-5">
+                    <label>CEP</label>
+                    <div class="p-inputgroup">
+                        <InputMask v-model="municipe.endereco.cep" mask="99999-999" @blur="buscarCep" />
+                        <Button icon="pi pi-search" @click="buscarCep" severity="secondary" />
+                    </div>
+                </div>
+                <div class="field col-7">
+                    <label>Bairro</label>
+                    <InputText v-model="municipe.endereco.bairro" />
+                </div>
+                <div class="field col-12">
+                    <label>Logradouro</label>
+                    <InputText v-model="municipe.endereco.logradouro" />
+                </div>
+                <div class="field col-4">
+                    <label>Número</label>
+                    <InputText v-model="municipe.endereco.numero" />
+                </div>
+                <div class="field col-8">
+                    <label>Complemento</label>
+                    <InputText v-model="municipe.endereco.complemento" />
+                </div>
+                <div class="field col-12">
+                    <label>Cidade/UF</label>
+                    <InputText v-model="municipe.endereco.cidade" placeholder="Mogi das Cruzes - SP" />
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="flex justify-content-between align-items-center w-full">
+          <span class="text-gray-500 text-sm">* Campos obrigatórios</span>
+          <div class="flex gap-2">
+              <Button label="Cancelar" icon="pi pi-times" text severity="secondary" @click="fecharModal" />
+              <Button label="Salvar Ficha" icon="pi pi-check" @click="salvarMunicipe" :loading="isSaving" />
+          </div>
+      </div>
+    </template>
+  </Dialog>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue';
+import { useToast } from 'primevue/usetoast';
+import { useAuthStore } from '@/stores/auth';
+import apiClient from '@/api';
+import Avatar from 'primevue/avatar';
+import FotoCapture from '@/components/common/FotoCapture.vue';
+
+const props = defineProps({
+  visible: { type: Boolean, required: true },
+  municipeId: { type: [Number, String], default: null }
+});
+
+const emit = defineEmits(['update:visible', 'saved']);
+
+const toast = useToast();
+const authStore = useAuthStore();
+const isLoading = ref(false);
+const isSaving = ref(false);
+
+const categoriasContato = ref([]);
+const contas = ref([]);
+
+// --- ESTADOS DA FOTO ---
+const fotoPreviewUrl = ref(null);
+const fotoArquivoParaUpload = ref(null);
+const fotoCaptureComponent = ref(null);
+
+const defaultMunicipe = {
+  nome_completo: '',
+  telefones: [{ tipo: 'celular', numero: '' }],
+  emails: [{ tipo: 'pessoal', email: '' }],
+  endereco: { cep: '', logradouro: '', bairro: '' },
+  categoria: null
+};
+
+const municipe = ref({ ...defaultMunicipe });
+
+const tiposDeTelefone = ref([
+    { label: 'Principal', value: 'principal' }, { label: 'Celular', value: 'celular' },
+    { label: 'Comercial', value: 'comercial' }, { label: 'Residencial', value: 'residencial' }
+]);
+const tiposDeEmail = ref([
+    { label: 'Principal', value: 'principal' }, { label: 'Pessoal', value: 'pessoal' },
+    { label: 'Comercial', value: 'comercial' }
+]);
+
+const dialogVisible = computed({
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val)
+});
+
+const isEditMode = computed(() => !!props.municipeId);
+const pageTitle = computed(() => isEditMode.value ? 'Editar Contato' : 'Novo Contato Rápido');
+
+// --- DEBUG: CARREGAMENTO ---
+async function carregarDados() {
+  console.log("--- DEBUG: Iniciando Carga ---");
+  isLoading.value = true;
+  try {
+    const [categoriasRes, contasRes] = await Promise.all([
+        apiClient.get('/api/contatos/categorias/'),
+        authStore.isSuperuser ? apiClient.get('/api/contas/') : Promise.resolve({ data: [] })
+    ]);
+    categoriasContato.value = categoriasRes.data;
+    contas.value = contasRes.data;
+
+    if (isEditMode.value) {
+      console.log(`Buscando dados do munícipe ID: ${props.municipeId}`);
+      const response = await apiClient.get(`/api/municipes/${props.municipeId}/`);
+      const data = response.data;
+      
+      // LOG DA FOTO VINDO DO BACKEND
+      console.log(">>> DADO RECEBIDO DO BACKEND:", data);
+      console.log(">>> CAMPO FOTO:", data.foto);
+      
+      // Sanitização
+      if (!data.telefones?.length) data.telefones = [{ tipo: 'celular', numero: '' }];
+      if (!data.emails?.length) data.emails = [{ tipo: 'pessoal', email: '' }];
+      if (!data.endereco) data.endereco = {};
+      if (data.data_nascimento) data.data_nascimento = new Date(data.data_nascimento + 'T00:00:00');
+      
+      municipe.value = data;
+
+      if (data.foto) {
+          console.log("Definindo preview com URL do backend:", data.foto);
+          fotoPreviewUrl.value = data.foto; 
+      } else {
+          console.log("Munícipe sem foto no backend.");
+          fotoPreviewUrl.value = null;
+      }
+
+    } else {
+      resetForm();
+    }
+  } catch (error) {
+    console.error("Erro no carregamento:", error);
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar dados.' });
+    fecharModal();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// --- DEBUG: CAPTURA ---
+const onFotoCapturada = (blobFoto) => {
+    console.log("--- DEBUG: FOTO CAPTURADA ---");
+    console.log("Blob recebido:", blobFoto);
+    console.log("Tipo do Blob:", blobFoto.type);
+    console.log("Tamanho:", blobFoto.size);
+
+    fotoArquivoParaUpload.value = blobFoto;
+    
+    if (fotoPreviewUrl.value && !fotoPreviewUrl.value.startsWith('http')) {
+        URL.revokeObjectURL(fotoPreviewUrl.value); 
+    }
+    fotoPreviewUrl.value = URL.createObjectURL(blobFoto);
+    console.log("Preview local atualizado.");
+};
+
+function resetForm() {
+  if (!isEditMode.value) {
+    municipe.value = JSON.parse(JSON.stringify(defaultMunicipe));
+  }
+  fotoPreviewUrl.value = null;
+  fotoArquivoParaUpload.value = null;
+}
+
+function fecharModal() {
+  dialogVisible.value = false;
+}
+
+// --- DEBUG: SALVAMENTO ---
+const salvarMunicipe = async () => {
+    isSaving.value = true;
+    try {
+        const payload = { ...municipe.value };
+        delete payload.foto; // Remove para garantir envio limpo no JSON
+
+        if (payload.data_nascimento instanceof Date) {
+            payload.data_nascimento = payload.data_nascimento.toISOString().split('T')[0];
+        }
+
+        if (payload.contas && payload.contas.length > 0 && typeof payload.contas[0] === 'object') {
+            payload.contas = payload.contas.map(conta => conta.id);
+        }
+
+        let response;
+        let municipeId;
+
+        // 1. Salva Texto
+        console.log("Enviando dados de texto...");
+        if (isEditMode.value) {
+            response = await apiClient.put(`/api/municipes/${payload.id}/`, payload);
+            municipeId = payload.id;
+        } else {
+            response = await apiClient.post('/api/municipes/', payload);
+            municipeId = response.data.id;
+        }
+        console.log("Texto salvo. ID:", municipeId);
+
+        // 2. Upload Foto
+        console.log("--- DEBUG: VERIFICANDO UPLOAD FOTO ---");
+        console.log("Existe arquivo para upload?", !!fotoArquivoParaUpload.value);
+        console.log("ID válido?", !!municipeId);
+
+        if (fotoArquivoParaUpload.value && municipeId) {
+            console.log("Iniciando montagem do FormData...");
+            const formData = new FormData();
+            formData.append('foto', fotoArquivoParaUpload.value, 'foto_perfil.jpg');
+            
+            // Verifica o que está dentro do FormData
+            console.log("Conteúdo do FormData 'foto':", formData.get('foto'));
+
+            console.log(`Enviando PATCH para /api/municipes/${municipeId}/`);
+            const resUpload = await apiClient.patch(`/api/municipes/${municipeId}/`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            console.log("Resposta do Upload:", resUpload.data);
+            console.log("Nova URL da foto:", resUpload.data.foto);
+
+            toast.add({ severity: 'info', summary: 'Foto Atualizada', detail: 'A nova foto foi salva com sucesso.', life: 3000 });
+        } else {
+            console.log("PULANDO UPLOAD: Arquivo inexistente ou ID inválido.");
+        }
+        
+        emit('saved', response.data); 
+        fecharModal();
+
+    } catch (error) {
+        console.error("Erro ao salvar:", error);
+        const errorMessages = error.response?.data ? Object.values(error.response.data).flat().join(' ') : 'Erro desconhecido';
+        toast.add({ severity: 'error', summary: 'Erro ao Salvar', detail: errorMessages, life: 5000 });
+    } finally {
+        isSaving.value = false;
+    }
+};
+
+const adicionarTelefone = () => municipe.value.telefones.push({ tipo: 'celular', numero: '' });
+const removerTelefone = (i) => municipe.value.telefones.splice(i, 1);
+const adicionarEmail = () => municipe.value.emails.push({ tipo: 'pessoal', email: '' });
+const removerEmail = (i) => municipe.value.emails.splice(i, 1);
+
+const buscarCep = async () => {
+    const cep = municipe.value.endereco.cep?.replace(/\D/g, '');
+    if (cep?.length === 8) {
+        try {
+            const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const data = await res.json();
+            if (!data.erro) {
+                municipe.value.endereco.logradouro = data.logradouro;
+                municipe.value.endereco.bairro = data.bairro;
+            }
+        } catch (e) { console.error(e); }
+    }
+};
+
+const formatarTelefone = (index) => {
+    let numero = municipe.value.telefones[index].numero.replace(/\D/g, '');
+    if (numero.length === 11) municipe.value.telefones[index].numero = `(${numero.substring(0, 2)}) ${numero.substring(2, 7)}-${numero.substring(7)}`;
+    else if (numero.length === 10) municipe.value.telefones[index].numero = `(${numero.substring(0, 2)}) ${numero.substring(2, 6)}-${numero.substring(6)}`;
+};
+</script>
