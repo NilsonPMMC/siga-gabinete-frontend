@@ -1,113 +1,108 @@
 <template>
   <div class="page-container">
     <Toast />
-    <div class="card">
-      <header class="page-header">
-        <Button icon="pi pi-arrow-left" severity="secondary" text rounded @click="voltarParaLista" />
-        <h1 class="page-title">{{ pageTitle }}</h1>
-      </header>
-
-      <div v-if="isLoading" class="text-center p-4">
-        <ProgressSpinner />
-        <p>Carregando dados do ofício...</p>
-      </div>
-
-      <div v-else class="form-container grid p-fluid">
-        <div class="col-12 md:col-5">
-          <div class="field">
-            <label for="assunto">Assunto*</label>
-            <InputText id="assunto" v-model="oficio.assunto" />
-          </div>
-
-          <div v-if="authStore.isSuperuser" class="field">
-            <label for="conta">Secretaria/Gabinete*</label>
-            <Dropdown id="conta" v-model="oficio.conta" :options="contas" optionLabel="nome" optionValue="id" placeholder="Selecione uma conta" />
-          </div>
-
-          <div class="field">
-            <label for="data_documento">Data do Documento*</label>
-            <Calendar id="data_documento" v-model="oficio.data_documento" dateFormat="dd/mm/yy" />
-          </div>
-
-          <Divider />
-
-          <h3 class="mb-3">Destinatário</h3>
-          <div class="field">
-            <label for="destinatario_tratamento">Tratamento*</label>
-            <InputText id="destinatario_tratamento" v-model="oficio.destinatario_tratamento" />
-          </div>
-          <div class="field">
-            <label for="destinatario_nome">Nome*</label>
-            <InputText id="destinatario_nome" v-model="oficio.destinatario_nome" />
-          </div>
-          <div class="field">
-            <label for="destinatario_cargo">Cargo*</label>
-            <InputText id="destinatario_cargo" v-model="oficio.destinatario_cargo" />
-          </div>
-          <div class="field">
-            <label for="destinatario_orgao">Órgão/Empresa*</label>
-            <InputText id="destinatario_orgao" v-model="oficio.destinatario_orgao" />
-          </div>
+    <Card>
+      <template #title>
+        <div class="card-title">
+          <Button icon="pi pi-arrow-left" severity="secondary" text rounded @click="voltarParaLista" />
+          <h2 class="ml-2">{{ pageTitle }}</h2>
+        </div>
+      </template>
+      <template #content>
+        <div v-if="isLoading" class="text-center p-4">
+          <ProgressSpinner />
+          <p>Carregando dados do ofício...</p>
         </div>
 
-        <div class="col-12 md:col-7 flex flex-column">
+        <div v-else class="form-container grid p-fluid">
+          <div class="col-12 md:col-5">
             <div class="field">
-                <label for="diretrizes-ia">Diretrizes para o Assistente de IA</label>
-                <Textarea id="diretrizes-ia" v-model="diretrizesIA" rows="3" placeholder="Ex: Solicitar informações sobre o andamento da obra X, com prazo de 15 dias." />
-                <div class="flex gap-2 mt-2">
-                    <Button label="Gerar Rascunho" icon="pi pi-sparkles" @click="chamarIA(false)" :loading="isIaLoading" />
-                    <Button label="Aprimorar Texto" icon="pi pi-magic" outlined @click="chamarIA(true)" :loading="isIaLoading" title="Usa as diretrizes para melhorar o texto que já está no editor."/>
-                </div>
+              <label for="assunto">Assunto*</label>
+              <InputText id="assunto" v-model="oficio.assunto" />
             </div>
-            
-            <div class="field h-full flex flex-column">
-                <label>Corpo do Ofício*</label>
-                <div v-if="editor" class="tiptap-toolbar">
-                  <Button 
-                    label="B" 
-                    @click="editor.chain().focus().toggleBold().run()" 
-                    :class="{ 'p-button-secondary': editor.isActive('bold') }" 
-                    text 
-                    class="p-button-sm font-bold"
-                    title="Negrito"/>
-                  <Button 
-                    label="I" 
-                    @click="editor.chain().focus().toggleItalic().run()" 
-                    :class="{ 'p-button-secondary': editor.isActive('italic') }" 
-                    text 
-                    class="p-button-sm"
-                    style="font-style: italic;"
-                    title="Itálico"/>
-                  <Button 
-                    icon="pi pi-list" 
-                    @click="editor.chain().focus().toggleBulletList().run()" 
-                    :class="{ 'p-button-secondary': editor.isActive('bulletList') }" 
-                    text 
-                    rounded 
-                    title="Lista"/>
-                  <Button 
-                    icon="pi pi-undo" 
-                    @click="editor.chain().focus().undo().run()" 
-                    text 
-                    rounded 
-                    title="Desfazer"/>
-                  <Button 
-                    icon="pi pi-refresh" 
-                    @click="editor.chain().focus().redo().run()" 
-                    text 
-                    rounded 
-                    title="Refazer"/>
-                </div>
-                <EditorContent :editor="editor" class="tiptap-editor"/>
+
+            <div v-if="authStore.isSuperuser" class="field">
+              <label for="conta">Secretaria/Gabinete*</label>
+              <Dropdown id="conta" v-model="oficio.conta" :options="contas" optionLabel="nome" optionValue="id" placeholder="Selecione uma conta" />
             </div>
+
+            <div class="field">
+              <label for="data_documento">Data do Documento*</label>
+              <Calendar id="data_documento" v-model="oficio.data_documento" dateFormat="dd/mm/yy" />
+            </div>
+
+            <Divider />
+
+            <h3 class="mb-3">Destinatário</h3>
+            <div class="field">
+              <label for="destinatario_tratamento">Tratamento*</label>
+              <InputText id="destinatario_tratamento" v-model="oficio.destinatario_tratamento" />
+            </div>
+            <div class="field">
+              <label for="destinatario_nome">Nome*</label>
+              <InputText id="destinatario_nome" v-model="oficio.destinatario_nome" />
+            </div>
+            <div class="field">
+              <label for="destinatario_cargo">Cargo</label>
+              <InputText id="destinatario_cargo" v-model="oficio.destinatario_cargo" />
+            </div>
+            <div class="field">
+              <label for="destinatario_orgao">Órgão/Empresa</label>
+              <InputText id="destinatario_orgao" v-model="oficio.destinatario_orgao" />
+            </div>
+          </div>
+
+          <div class="col-12 md:col-7 flex flex-column">            
+              <div class="field h-full flex flex-column">
+                  <label>Corpo do Ofício*</label>
+                  <div v-if="editor" class="tiptap-toolbar">
+                    <Button 
+                      label="B" 
+                      @click="editor.chain().focus().toggleBold().run()" 
+                      :class="{ 'p-button-secondary': editor.isActive('bold') }" 
+                      text 
+                      class="p-button-sm font-bold"
+                      title="Negrito"/>
+                    <Button 
+                      label="I" 
+                      @click="editor.chain().focus().toggleItalic().run()" 
+                      :class="{ 'p-button-secondary': editor.isActive('italic') }" 
+                      text 
+                      class="p-button-sm"
+                      style="font-style: italic;"
+                      title="Itálico"/>
+                    <Button 
+                      icon="pi pi-list" 
+                      @click="editor.chain().focus().toggleBulletList().run()" 
+                      :class="{ 'p-button-secondary': editor.isActive('bulletList') }" 
+                      text 
+                      rounded 
+                      title="Lista"/>
+                    <Button 
+                      icon="pi pi-undo" 
+                      @click="editor.chain().focus().undo().run()" 
+                      text 
+                      rounded 
+                      title="Desfazer"/>
+                    <Button 
+                      icon="pi pi-refresh" 
+                      @click="editor.chain().focus().redo().run()" 
+                      text 
+                      rounded 
+                      title="Refazer"/>
+                  </div>
+                  <EditorContent :editor="editor" class="tiptap-editor"/>
+              </div>
+          </div>
         </div>
-      </div>
-      
-      <div class="form-actions">
-        <Button label="Cancelar" severity="secondary" outlined @click="voltarParaLista" />
-        <Button label="Salvar Ofício" icon="pi pi-check" @click="salvarOficio" :loading="isSaving" />
-      </div>
-    </div>
+      </template>
+      <template #footer>
+        <div class="flex align-items-center gap-1">
+          <Button label="Cancelar" severity="secondary" outlined @click="voltarParaLista" />
+          <Button label="Salvar Ofício" icon="pi pi-check" @click="salvarOficio" :loading="isSaving" />
+        </div>
+      </template>
+    </Card>
   </div>
 </template>
 
@@ -143,7 +138,6 @@ const oficio = ref({
 const contas = ref([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
-const diretrizesIA = ref('');
 const isIaLoading = ref(false);
 
 const isEditMode = computed(() => !!props.id);
@@ -239,29 +233,6 @@ async function salvarOficio() {
 function voltarParaLista() {
   router.push({ name: 'oficios-lista' });
 }
-
-async function chamarIA(aprimorar) {
-  if (!diretrizesIA.value.trim()) {
-    toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Por favor, forneça as diretrizes para a IA.' });
-    return;
-  }
-  
-  isIaLoading.value = true;
-  try {
-    const texto_existente = aprimorar ? (oficio.value.corpo || '') : '';
-    const response = await gerarTextoComIA(diretrizesIA.value, texto_existente);
-    
-    // Agora ficou simples: basta atualizar a variável. O watcher do TipTap cuida do resto!
-    oficio.value.corpo = response.data.texto_gerado;
-
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Texto gerado pela IA!' });
-  } catch (error) {
-    console.error("Erro ao chamar IA:", error);
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o texto com a IA.' });
-  } finally {
-    isIaLoading.value = false;
-  }
-}
 </script>
 
 <style>
@@ -311,4 +282,8 @@ async function chamarIA(aprimorar) {
 .p-button-sm{
   width: auto;
 }
+.page-container { padding: 2rem; }
+.field { margin-bottom: 1.5rem; }
+.card-title { display: flex; align-items: center; }
+label { margin-bottom: 0.25rem; display: block; }
 </style>

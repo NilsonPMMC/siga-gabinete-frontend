@@ -9,8 +9,9 @@ import MultiSelect from 'primevue/multiselect';
 import { format, addDays, subDays, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Importa o Componente Reutilizável
+// COMPONENTES REUTILIZÁVEIS
 import MunicipeFormModal from '@/components/municipes/MunicipeFormModal.vue';
+import MunicipeUnificarModal from '@/components/municipes/MunicipeUnificarModal.vue'; // <--- IMPORTANTE
 
 // --- DECLARAÇÕES INICIAIS ---
 const router = useRouter();
@@ -36,9 +37,13 @@ const municipesSelecionados = ref([]);
 const categoriasContato = ref([]);
 const contas = ref([]);
 
-// --- ESTADOS DO MODAL REUTILIZÁVEL ---
+// --- ESTADOS DO MODAL FORM ---
 const showMunicipeModal = ref(false);
-const municipeIdParaEditar = ref(null); // Null = Criar, ID = Editar
+const municipeIdParaEditar = ref(null);
+
+// --- ESTADOS DE UNIFICAÇÃO (NOVO) ---
+const showUnificarModal = ref(false);
+const duplicadoParaUnificacao = ref(null);
 
 // --- ESTADOS DE ANIVERSARIANTES ---
 const aniversariantes = ref([]);
@@ -123,36 +128,99 @@ const filtrarPorLetra = async (letra) => {
   await aplicarFiltros();
 };
 
-// --- LÓGICA DO NOVO MODAL UNIFICADO ---
+// --- LÓGICA DO MODAL (CRUD) ---
 
 const abrirDialogoParaCriacao = () => {
-    municipeIdParaEditar.value = null; // Modo criação
+    municipeIdParaEditar.value = null;
     showMunicipeModal.value = true;
 };
 
 const abrirDialogoParaEdicao = (municipe) => {
-    municipeIdParaEditar.value = municipe.id; // Modo edição
+    municipeIdParaEditar.value = municipe.id;
     showMunicipeModal.value = true;
 };
 
 const aoSalvarMunicipe = (contatoSalvo) => {
-    // Atualiza a lista localmente para evitar reload total
     const index = todosMunicipes.value.findIndex(m => m.id === contatoSalvo.id);
     if (index !== -1) {
         todosMunicipes.value[index] = contatoSalvo;
-        // Atualiza também na lista filtrada
         const indexNaTela = municipesNaTela.value.findIndex(m => m.id === contatoSalvo.id);
         if (indexNaTela !== -1) {
             municipesNaTela.value[indexNaTela] = contatoSalvo;
         }
     } else {
-        // Novo contato
         todosMunicipes.value.unshift(contatoSalvo);
         municipesNaTela.value.unshift(contatoSalvo);
     }
     
     showMunicipeModal.value = false;
     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Lista atualizada.', life: 2000 });
+};
+
+// --- AÇÕES COM INTELIGÊNCIA DE FUSÃO ---
+const tentarExcluirContato = async (contato) => {
+    try {
+        // 1. Verifica vínculos
+        const res = await apiClient.get(`/api/municipes/${contato.id}/verificar-vinculos/`);
+        const { tem_vinculos, total, detalhes } = res.data;
+
+        if (tem_vinculos) {
+            // Sugere Fusão
+            confirm.require({
+                header: 'Registro com Histórico',
+                message: `Este contato possui ${total} vínculos (${detalhes.join(', ')}). Deseja unificá-lo com outro registro antes de excluir?`,
+                icon: 'pi pi-info-circle',
+                acceptLabel: 'Unificar',
+                rejectLabel: 'Cancelar',
+                acceptClass: 'p-button-warning',
+                accept: () => {
+                    duplicadoParaUnificacao.value = contato;
+                    showUnificarModal.value = true;
+                }
+            });
+        } else {
+            // Exclusão Direta
+            confirmarExclusaoReal(contato);
+        }
+    } catch (e) {
+        // Fallback se a API falhar (exclui direto)
+        confirmarExclusaoReal(contato);
+    }
+};
+
+const confirmarExclusaoReal = (contato) => {
+  confirm.require({
+    message: `Você tem certeza que deseja excluir "${contato.nome_completo}"?`,
+    header: 'Confirmar Exclusão',
+    icon: 'pi pi-exclamation-triangle',
+    acceptClassName: 'p-button-danger',
+    acceptLabel: 'Sim, excluir',
+    rejectLabel: 'Cancelar',
+    accept: async () => {
+      try {
+        await apiClient.delete(`/api/municipes/${contato.id}/`);
+        todosMunicipes.value = todosMunicipes.value.filter(m => m.id !== contato.id);
+        municipesNaTela.value = municipesNaTela.value.filter(m => m.id !== contato.id);
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato excluído.', life: 3000 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o contato.', life: 3000 });
+      }
+    },
+  });
+};
+
+const aoUnificar = () => {
+    // Recarrega tudo após fusão para garantir consistência
+    carregarDadosIniciais();
+};
+
+const irParaVisao360 = (id) => router.push(`/municipes/${id}/historico`);
+
+const copiarTexto = (texto) => {
+  if (!texto) return;
+  navigator.clipboard.writeText(texto).then(() => {
+    toast.add({ severity: 'success', summary: 'Copiado', detail: `'${texto}' copiado.`, life: 2000 });
+  });
 };
 
 // --- FUNÇÕES DE ANIVERSARIANTES (MANTIDAS) ---
@@ -166,7 +234,7 @@ const carregarAniversariantes = async (dataParaBuscar) => {
         });
         aniversariantes.value = response.data;
     } catch (error) {
-        console.error("Erro ao carregar aniversariantes:", error);
+        console.error(error);
     } finally {
         isLoadingAniversariantes.value = false;
     }
@@ -192,36 +260,6 @@ const ehHoje = computed(() => {
     return format(dataAniversariantesVisivel.value, 'yyyy-MM-dd') === format(startOfToday(), 'yyyy-MM-dd');
 });
 
-// --- AÇÕES AUXILIARES (MANTIDAS) ---
-const confirmarExclusaoContato = (contato) => {
-  confirm.require({
-    message: `Você tem certeza que deseja excluir o contato "${contato.nome_completo}"?`,
-    header: 'Confirmar Exclusão',
-    icon: 'pi pi-exclamation-triangle',
-    acceptClassName: 'p-button-danger',
-    acceptLabel: 'Sim, excluir',
-    rejectLabel: 'Cancelar',
-    accept: async () => {
-      try {
-        await apiClient.delete(`/api/municipes/${contato.id}/`);
-        todosMunicipes.value = todosMunicipes.value.filter(m => m.id !== contato.id);
-        municipesNaTela.value = municipesNaTela.value.filter(m => m.id !== contato.id);
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato excluído.', life: 3000 });
-      } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o contato.', life: 3000 });
-      }
-    },
-  });
-};
-
-const irParaVisao360 = (id) => router.push(`/municipes/${id}/historico`);
-
-const copiarTexto = (texto) => {
-  if (!texto) return;
-  navigator.clipboard.writeText(texto).then(() => {
-    toast.add({ severity: 'success', summary: 'Copiado', detail: `'${texto}' copiado.`, life: 2000 });
-  });
-};
 
 // --- EXPORTAÇÕES (MANTIDAS) ---
 const exportarExcel = async () => {
@@ -438,7 +476,7 @@ const executarAtualizacaoCategoriaLote = async () => {
           <template #body="slotProps">
             <Button icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico" />
             <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicao(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Editar" />
-            <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmarExclusaoContato(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Excluir" />
+            <Button icon="pi pi-trash" text rounded severity="danger" @click="tentarExcluirContato(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Excluir" />
           </template>
         </Column>
         <template #empty>Nenhum munícipe encontrado.</template>
@@ -449,6 +487,12 @@ const executarAtualizacaoCategoriaLote = async () => {
         v-model:visible="showMunicipeModal" 
         :municipeId="municipeIdParaEditar" 
         @saved="aoSalvarMunicipe" 
+    />
+
+    <MunicipeUnificarModal 
+        v-model:visible="showUnificarModal" 
+        :duplicadoInicial="duplicadoParaUnificacao"
+        @merged="aoUnificar"
     />
 
     <Dialog v-model:visible="dialogoAniversariantesVisivel" :header="`Aniversariantes do dia ${dataAniversariantesFormatada}`" modal :style="{ width: '1000px' }">

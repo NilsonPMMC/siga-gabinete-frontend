@@ -190,6 +190,7 @@ const isSaving = ref(false);
 
 const categoriasContato = ref([]);
 const contas = ref([]);
+const localId = ref(null);
 
 // --- ESTADOS DA FOTO ---
 const fotoPreviewUrl = ref(null);
@@ -225,7 +226,6 @@ const pageTitle = computed(() => isEditMode.value ? 'Editar Contato' : 'Novo Con
 
 // --- DEBUG: CARREGAMENTO ---
 async function carregarDados() {
-  console.log("--- DEBUG: Iniciando Carga ---");
   isLoading.value = true;
   try {
     const [categoriasRes, contasRes] = await Promise.all([
@@ -239,10 +239,6 @@ async function carregarDados() {
       console.log(`Buscando dados do munícipe ID: ${props.municipeId}`);
       const response = await apiClient.get(`/api/municipes/${props.municipeId}/`);
       const data = response.data;
-      
-      // LOG DA FOTO VINDO DO BACKEND
-      console.log(">>> DADO RECEBIDO DO BACKEND:", data);
-      console.log(">>> CAMPO FOTO:", data.foto);
       
       // Sanitização
       if (!data.telefones?.length) data.telefones = [{ tipo: 'celular', numero: '' }];
@@ -261,7 +257,20 @@ async function carregarDados() {
       }
 
     } else {
-      resetForm();
+        resetForm();
+            
+        // --- LÓGICA AUTOMÁTICA PARA RECEPÇÃO ---
+        // Verifica se o usuário tem perfil de Recepção
+        const isRecepcao = authStore.user?.groups?.includes('Recepção');
+        
+        if (isRecepcao) {
+            // Tenta achar a categoria "Munícipe" (case insensitive)
+            const catMunicipe = categoriasContato.value.find(c => c.nome.toLowerCase() === 'munícipe' || c.nome.toLowerCase() === 'municipe');
+            
+            if (catMunicipe) {
+                municipe.value.categoria = catMunicipe.id;
+            }
+        }
     }
   } catch (error) {
     console.error("Erro no carregamento:", error);
@@ -289,80 +298,110 @@ const onFotoCapturada = (blobFoto) => {
 };
 
 function resetForm() {
-  if (!isEditMode.value) {
-    municipe.value = JSON.parse(JSON.stringify(defaultMunicipe));
-  }
-  fotoPreviewUrl.value = null;
-  fotoArquivoParaUpload.value = null;
+    localId.value = null;
+    if (!isEditMode.value) {
+        municipe.value = JSON.parse(JSON.stringify(defaultMunicipe));
+    }
+    fotoPreviewUrl.value = null;
+    fotoArquivoParaUpload.value = null;
 }
 
 function fecharModal() {
   dialogVisible.value = false;
 }
 
-// --- DEBUG: SALVAMENTO ---
+
+// --- CORREÇÃO DA FUNÇÃO SALVAR ---
 const salvarMunicipe = async () => {
-    isSaving.value = true;
+    // 1. Validação Básica
+    if (!municipe.value.categoria) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione a Categoria.', life: 4000 });
+        return;
+    }
+    if (!municipe.value.nome_completo) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Informe o Nome.', life: 4000 });
+        return;
+    }
+
+    isSaving.value = true; // TRAVA O BOTÃO
+
     try {
         const payload = { ...municipe.value };
-        delete payload.foto; // Remove para garantir envio limpo no JSON
+        delete payload.foto; // Texto vai limpo, sem o campo de arquivo
 
+        // Formata datas
         if (payload.data_nascimento instanceof Date) {
             payload.data_nascimento = payload.data_nascimento.toISOString().split('T')[0];
         }
-
+        
+        // Corrige arrays de IDs (contas)
         if (payload.contas && payload.contas.length > 0 && typeof payload.contas[0] === 'object') {
             payload.contas = payload.contas.map(conta => conta.id);
         }
 
         let response;
-        let municipeId;
+        
+        // --- A CORREÇÃO DO FANTASMA ESTÁ AQUI ---
+        // Verifica se é edição olhando a prop OU o localId (que definimos logo após salvar)
+        const idParaSalvar = props.municipeId || localId.value;
 
-        // 1. Salva Texto
-        console.log("Enviando dados de texto...");
-        if (isEditMode.value) {
-            response = await apiClient.put(`/api/municipes/${payload.id}/`, payload);
-            municipeId = payload.id;
+        if (idParaSalvar) {
+            // EDICAO (PUT)
+            response = await apiClient.put(`/api/municipes/${idParaSalvar}/`, payload);
         } else {
+            // CRIAÇÃO (POST)
             response = await apiClient.post('/api/municipes/', payload);
-            municipeId = response.data.id;
+            
+            // IMEDIATAMENTE define o ID local. 
+            // Se o upload da foto falhar ou demorar, o próximo clique será um PUT (Edição), não outro POST.
+            localId.value = response.data.id; 
+            municipe.value.id = response.data.id;
         }
-        console.log("Texto salvo. ID:", municipeId);
 
-        // 2. Upload Foto
-        console.log("--- DEBUG: VERIFICANDO UPLOAD FOTO ---");
-        console.log("Existe arquivo para upload?", !!fotoArquivoParaUpload.value);
-        console.log("ID válido?", !!municipeId);
+        // O objeto base agora é o que voltou do servidor (com ID garantido)
+        let objetoFinal = response.data;
 
-        if (fotoArquivoParaUpload.value && municipeId) {
-            console.log("Iniciando montagem do FormData...");
+        // 2. Upload da Foto (PATCH)
+        if (fotoArquivoParaUpload.value) {
             const formData = new FormData();
             formData.append('foto', fotoArquivoParaUpload.value, 'foto_perfil.jpg');
-            
-            // Verifica o que está dentro do FormData
-            console.log("Conteúdo do FormData 'foto':", formData.get('foto'));
 
-            console.log(`Enviando PATCH para /api/municipes/${municipeId}/`);
-            const resUpload = await apiClient.patch(`/api/municipes/${municipeId}/`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            console.log("Resposta do Upload:", resUpload.data);
-            console.log("Nova URL da foto:", resUpload.data.foto);
+            try {
+                // Usa o localId que garantimos acima
+                const resUpload = await apiClient.patch(`/api/municipes/${localId.value}/`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                
+                // Atualiza o objeto final com a URL da foto nova
+                objetoFinal = resUpload.data;
+                
+                // Cache Busting: Adiciona um timestamp falso na URL para o navegador atualizar a imagem na hora
+                if (objetoFinal.foto) {
+                    objetoFinal.foto = `${objetoFinal.foto}?t=${new Date().getTime()}`;
+                }
 
-            toast.add({ severity: 'info', summary: 'Foto Atualizada', detail: 'A nova foto foi salva com sucesso.', life: 3000 });
-        } else {
-            console.log("PULANDO UPLOAD: Arquivo inexistente ou ID inválido.");
+                toast.add({ severity: 'info', summary: 'Foto', detail: 'Foto atualizada com sucesso.' });
+
+            } catch (errFoto) {
+                console.error("Erro no upload da foto (Texto foi salvo):", errFoto);
+                toast.add({ severity: 'warn', summary: 'Aviso', detail: 'O contato foi salvo, mas houve erro ao enviar a foto.' });
+            }
         }
-        
-        emit('saved', response.data); 
+
+        // Emite o evento para a lista atualizar
+        emit('saved', objetoFinal);
         fecharModal();
 
     } catch (error) {
         console.error("Erro ao salvar:", error);
-        const errorMessages = error.response?.data ? Object.values(error.response.data).flat().join(' ') : 'Erro desconhecido';
-        toast.add({ severity: 'error', summary: 'Erro ao Salvar', detail: errorMessages, life: 5000 });
+        let msg = 'Erro desconhecido.';
+        if (error.response) {
+            if (error.response.status >= 500) msg = "Erro interno no servidor.";
+            else if (error.response.data) msg = Object.values(error.response.data).flat().join(' - ');
+        }
+        toast.add({ severity: 'error', summary: 'Erro ao Salvar', detail: msg, life: 5000 });
     } finally {
-        isSaving.value = false;
+        isSaving.value = false; // DESTRAVA O BOTÃO SÓ NO FINAL
     }
 };
 
