@@ -10,6 +10,7 @@ import ProgressSpinner from 'primevue/progressspinner';
 import Button from 'primevue/button';
 import Calendar from 'primevue/calendar';
 import Dropdown from 'primevue/dropdown';
+import MultiSelect from 'primevue/multiselect';
 
 // Importando nossos 3 componentes de gráfico
 import GraficoAtendimentosStatus from '@/components/GraficoAtendimentosStatus.vue';
@@ -32,9 +33,11 @@ const dataInicio = ref(null);
 const dataFim = ref(null);
 const filtroConta = ref(null);
 const filtroStatus = ref(null);
+const filtroMembros = ref([]);
 
 // Opções para os dropdowns de filtro
 const contasOptions = ref([]);
+const membrosOptions = ref([]);
 const statusOptions = ref([
     { label: 'Todos', value: null },
     { label: 'Aberto', value: 'ABERTO' },
@@ -85,6 +88,9 @@ const fetchReportsData = async () => {
   if (dataFimFormatada) params.data_fim = dataFimFormatada;
   if (filtroConta.value) params.conta_id = filtroConta.value;
   if (filtroStatus.value) params.status = filtroStatus.value;
+  if (filtroMembros.value && filtroMembros.value.length > 0) {
+    params.responsavel_ids = filtroMembros.value.join(',');
+  }
 
   try {
     const [resStatus, resConta, resCategoria] = await Promise.all([
@@ -113,6 +119,9 @@ const exportarPDF = async () => {
     if (dataFimFormatada) params.data_fim = dataFimFormatada;
     if (filtroConta.value) params.conta_id = filtroConta.value;
     if (filtroStatus.value) params.status = filtroStatus.value;
+    if (filtroMembros.value && filtroMembros.value.length > 0) {
+      params.responsavel_ids = filtroMembros.value.join(',');
+    }
 
     try {
         const response = await apiClient.get('/api/relatorios/atendimentos/pdf/', {
@@ -130,6 +139,38 @@ const exportarPDF = async () => {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o PDF.' });
     } finally {
         isExporting.value = false;
+    }
+};
+
+// Função para buscar membros de uma conta
+const buscarMembrosDaConta = async (contaId) => {
+    if (!contaId || !authStore.user?.is_superuser) {
+        membrosOptions.value = [];
+        filtroMembros.value = [];
+        return;
+    }
+    
+    try {
+        const resMembros = await apiClient.get('/api/usuarios/', { 
+            params: { conta_id: contaId } 
+        });
+        membrosOptions.value = resMembros.data.map(u => ({ 
+            label: u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username, 
+            value: u.id 
+        }));
+    } catch (error) {
+        console.error("Erro ao buscar membros da conta:", error);
+        membrosOptions.value = [];
+    }
+};
+
+// Watcher para buscar membros quando conta é selecionada
+const aoSelecionarConta = () => {
+    if (filtroConta.value) {
+        buscarMembrosDaConta(filtroConta.value);
+    } else {
+        membrosOptions.value = [];
+        filtroMembros.value = [];
     }
 };
 
@@ -168,7 +209,11 @@ onMounted(async () => {
                 </div>
                 <div class="field col" v-if="authStore.user?.is_superuser || authStore.isRecepcao">
                   <label for="filtroConta">Gabinete</label>
-                  <Dropdown id="filtroConta" v-model="filtroConta" :options="contasOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear />
+                  <Dropdown id="filtroConta" v-model="filtroConta" :options="contasOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aoSelecionarConta" />
+                </div>
+                <div class="field col" v-if="authStore.user?.is_superuser && filtroConta">
+                    <label for="filtroMembros">Membros</label>
+                    <MultiSelect id="filtroMembros" v-model="filtroMembros" :options="membrosOptions" optionLabel="label" optionValue="value" placeholder="Todos os membros" display="chip" :filter="true" />
                 </div>
                 <div class="field col">
                     <label for="filtroStatus">Status</label>
