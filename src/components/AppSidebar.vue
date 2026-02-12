@@ -7,15 +7,10 @@ const authStore = useAuthStore();
 
 const rawItems = [
     {
-        label: 'Início',
-        items: [
-                { 
-                    label: 'Dashboard',
-                    icon: 'pi pi-fw pi-home',
-                    to: '/',
-                    visible: () => !authStore.isUsuarioEstritamenteEscalas
-                }
-            ]
+        label: 'Dashboard',
+        icon: 'pi pi-fw pi-home',
+        to: '/',
+        visible: () => !authStore.isUsuarioEstritamenteEscalas
     },
     {
         label: 'Módulos',
@@ -66,13 +61,13 @@ const rawItems = [
                 visible: () => authStore.isRecepcao || authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro,
                 items: [
                     { 
-                        label: 'Agenda', 
+                        label: 'Contatos', 
                         icon: 'pi pi-fw pi-users', 
                         to: '/contatos' 
                     },
                     {
-                        label: 'Duplicados', 
-                        icon: 'pi pi-fw pi-users', 
+                        label: 'Duplicatas', 
+                        icon: 'pi pi-fw pi-copy', 
                         to: '/gestao-duplicatas',
                         visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
                     },
@@ -142,17 +137,18 @@ const rawItems = [
         ]
     },
     {
-        label: 'Agendas Google',
+        label: 'Agenda Prefeita',
+        icon: 'pi pi-fw pi-calendar',
         items: [
              {
                 label: 'Minha Agenda',
-                icon: 'pi pi-fw pi-google',
+                icon: 'pi pi-fw pi-calendar',
                 to: '/google-agenda',
                 visible: () => authStore.isSecretaria || authStore.user?.is_superuser
              },
              {
                 label: 'Agendas da Equipe',
-                icon: 'pi pi-fw pi-google',
+                icon: 'pi pi-fw pi-calendar',
                 to: '/agendas-compartilhadas',
                 visible: () => authStore.isMembro
              }

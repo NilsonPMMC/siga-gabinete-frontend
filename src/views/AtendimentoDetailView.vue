@@ -13,11 +13,10 @@ import Tag from 'primevue/tag';
 import Timeline from 'primevue/timeline';
 import ProgressSpinner from 'primevue/progressspinner';
 import Textarea from 'primevue/textarea';
-import Dropdown from 'primevue/dropdown';
-import MultiSelect from 'primevue/multiselect';
-import ToggleButton from 'primevue/togglebutton';
 import ConfirmDialog from 'primevue/confirmdialog';
 import AlterarStatusModal from '@/components/atendimentos/AlterarStatusModal.vue';
+import Chip from 'primevue/chip';
+import FileUpload from 'primevue/fileupload';
 
 const route = useRoute();
 const router = useRouter();
@@ -29,28 +28,11 @@ const atendimento = ref(null);
 const isLoading = ref(true);
 const showAlterarStatusModal = ref(false);
 
-const todasCategorias = ref([]);
-
 onMounted(async () => {
   await carregarAtendimento();
 });
 
-const salvarAlteracoes = async () => {
-    try {
-        // Status não pode mais ser alterado diretamente - removido do payload
-        const payload = {
-            categorias_ids: atendimento.value.categorias 
-        };
-        const response = await apiClient.patch(`/api/atendimentos/${atendimento.value.id}/`, payload);
-
-        atendimento.value.categorias = response.data.categorias.map(c => c.id);
-
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Categorias atualizadas.', life: 3000 });
-    } catch (error) {
-        console.error("Erro ao atualizar atendimento:", error.response?.data);
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar o atendimento.', life: 3000 });
-    }
-};
+// Função removida - categorias agora são apenas visualização
 
 const carregarAtendimento = async () => {
     if (!authStore.isAuthenticated) {
@@ -59,17 +41,8 @@ const carregarAtendimento = async () => {
     }
     const atendimentoId = route.params.id;
     try {
-        const [atendimentoRes, categoriasRes] = await Promise.all([
-            apiClient.get(`/api/atendimentos/${atendimentoId}/`),
-            apiClient.get('/api/categorias/')
-        ]);
-
-        atendimento.value = {
-            ...atendimentoRes.data,
-            categorias: atendimentoRes.data.categorias.map(c => c.id)
-        };
-        todasCategorias.value = categoriasRes.data;
-
+        const atendimentoRes = await apiClient.get(`/api/atendimentos/${atendimentoId}/`);
+        atendimento.value = atendimentoRes.data;
     } catch (error) { console.error("Erro ao buscar dados:", error); } 
     finally { isLoading.value = false; }
 };
@@ -79,39 +52,28 @@ const aoStatusAlterado = async () => {
     await carregarAtendimento();
 };
 
-const novaTramitacaoTexto = ref('');
-const isSavingTramitacao = ref(false);
-const notificarMunicipe = ref(false);
 const isPrinting = ref(false); // Para o estado de loading do botão de imprimir
 
 const getStatusSeverity = (status) => {
-  const map = { 'ABERTO': 'info', 'EM_ANALISE': 'warning', 'CONCLUIDO': 'success' };
+  const map = { 
+    'ABERTO': 'info', 
+    'EM_ANALISE': 'warning', 
+    'ENCAMINHADO': 'warning',
+    'CONCLUIDO': 'success',
+    'ARQUIVADO': 'secondary'
+  };
   return map[status] || 'secondary';
 };
 
-const salvarNovaTramitacao = async () => {
-  if (!novaTramitacaoTexto.value.trim()) {
-    toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O campo de despacho não pode estar vazio.', life: 3000 });
-    return;
-  }
-
-  isSavingTramitacao.value = true;
-  try {
-    const payload = {
-      despacho: novaTramitacaoTexto.value,
-      notificar_municipe: notificarMunicipe.value // Adicionamos a nova informação
-    }
-    const response = await apiClient.post(`/api/atendimentos/${atendimento.value.id}/tramitacoes/`, payload);
-    atendimento.value.tramitacoes.unshift(response.data);
-    novaTramitacaoTexto.value = '';
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Novo andamento registrado.', life: 3000 });
-
-  } catch (error) {
-    console.error("Erro ao salvar tramitação:", error);
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar a nota.', life: 3000 });
-  } finally {
-    isSavingTramitacao.value = false;
-  }
+const getStatusDisplay = (status) => {
+  const map = {
+    'ABERTO': 'Aberto',
+    'EM_ANALISE': 'Em Análise',
+    'ENCAMINHADO': 'Encaminhado',
+    'CONCLUIDO': 'Concluído',
+    'ARQUIVADO': 'Arquivado'
+  };
+  return map[status] || status;
 };
 
 const setAuthHeader = (event) => {
@@ -228,13 +190,13 @@ const gerarPdfDetalhado = async () => {
           <div class="grid">
             <div class="col-12 md:col-3">
               <div class="p-fluid">
-                <h4>Gerenciar Atendimento</h4>
+                <h4>Informações do Atendimento</h4>
                 
-                <!-- Status (somente visualização) -->
-                <div class="field">
-                    <label>Status do Atendimento</label>
+                <!-- Status -->
+                <div class="field mb-4">
+                    <label>Status</label>
                     <div class="flex align-items-center gap-2">
-                        <Tag :value="atendimento.status" :severity="getStatusSeverity(atendimento.status)" />
+                        <Tag :value="getStatusDisplay(atendimento.status)" :severity="getStatusSeverity(atendimento.status)" />
                         <Button 
                             icon="pi pi-pencil" 
                             @click="showAlterarStatusModal = true" 
@@ -242,19 +204,25 @@ const gerarPdfDetalhado = async () => {
                             text 
                             size="small"
                             v-tooltip.top="'Alterar Status'"
+                            severity="secondary"
                         />
                     </div>
                     <small class="p-text-secondary">Clique no ícone para alterar o status</small>
                 </div>
                 
-                <!-- Categorias -->
-                <div class="field">
-                    <label for="categorias">Categorias</label>
-                    <MultiSelect id="categorias" v-model="atendimento.categorias" :options="todasCategorias" optionLabel="nome" optionValue="id" placeholder="Selecione as categorias" display="chip" />
+                <!-- Categorias (somente visualização) -->
+                <div class="field" v-if="atendimento.categorias && atendimento.categorias.length > 0">
+                    <label>Categorias</label>
+                    <div class="flex flex-wrap gap-2">
+                        <Chip 
+                            v-for="categoria in atendimento.categorias" 
+                            :key="categoria.id" 
+                            :label="categoria.nome" 
+                            class="text-sm"
+                        />
+                    </div>
                 </div>
-                <Button label="Salvar Categorias" icon="pi pi-save" @click="salvarAlteracoes" class="mt-2" />
               </div>
-
             </div>
 
             <div class="col-12 md:col-9">
@@ -274,32 +242,96 @@ const gerarPdfDetalhado = async () => {
 
               <hr>
 
-              <h4>Histórico de Tramitações</h4>
-              <Timeline :value="atendimento.tramitacoes" align="left" class="custom-timeline">
+              <div class="flex align-items-center justify-content-between mb-3">
+                <h4 class="m-0">Histórico de Tramitações</h4>
+                <Button 
+                    label="Alterar Status" 
+                    icon="pi pi-sync" 
+                    @click="showAlterarStatusModal = true"
+                    size="small"
+                    severity="secondary"
+                />
+              </div>
+              
+              <div v-if="!atendimento.tramitacoes || atendimento.tramitacoes.length === 0" class="text-center p-4 text-color-secondary">
+                <i class="pi pi-info-circle text-2xl mb-2"></i>
+                <p>Nenhuma tramitação registrada ainda.</p>
+                <p class="text-sm">Use o botão "Alterar Status" acima para criar a primeira tramitação.</p>
+              </div>
+              
+              <Timeline v-else :value="atendimento.tramitacoes" align="left" class="custom-timeline">
                 <template #marker="slotProps">
-                    <Button :icon="slotProps.item.editando ? 'pi pi-save' : 'pi pi-pencil'" rounded text size="small" @click="toggleEdicao(slotProps.item)" />
+                    <div class="timeline-marker">
+                        <i v-if="slotProps.item.alterou_status" class="pi pi-sync text-primary"></i>
+                        <i v-else class="pi pi-comment text-secondary"></i>
+                    </div>
                 </template>
                 <template #content="slotProps">
-                    <Textarea v-if="slotProps.item.editando" v-model="slotProps.item.textoEditado" rows="2" autoResize class="w-full mb-2" />
-                    <div v-else>
-                        <p><strong>{{ slotProps.item.despacho }}</strong></p>
-                        <!-- Mostrar mudança de status se houver -->
-                        <div v-if="slotProps.item.alterou_status && slotProps.item.status_anterior && slotProps.item.status_novo" class="mt-2">
-                            <Tag 
-                                :value="`Status: ${slotProps.item.status_anterior_display || slotProps.item.status_anterior} → ${slotProps.item.status_novo_display || slotProps.item.status_novo}`" 
-                                severity="info" 
-                                class="text-xs"
-                            />
-                            <span v-if="slotProps.item.encaminhado_para_nome" class="ml-2 text-sm text-color-secondary">
-                                → {{ slotProps.item.encaminhado_para_nome }}
-                            </span>
-                        </div>
-                    </div>
-                    <small>Por: {{ slotProps.item.usuario_nome || 'Sistema' }} em {{ new Date(slotProps.item.data_tramitacao).toLocaleString('pt-BR') }}</small>
-                </template>
-                <template #opposite="slotProps">
-                     <Button v-if="slotProps.item.editando" icon="pi pi-times" rounded text severity="secondary" size="small" @click="cancelarEdicao(slotProps.item)" />
-                     <Button v-else icon="pi pi-trash" rounded text severity="danger" size="small" @click="confirmarExclusao(slotProps.item)" />
+                    <Card class="mb-3">
+                        <template #content>
+                            <div v-if="slotProps.item.editando">
+                                <Textarea v-model="slotProps.item.textoEditado" rows="3" autoResize class="w-full mb-2" />
+                                <div class="flex gap-2">
+                                    <Button label="Salvar" icon="pi pi-check" size="small" @click="toggleEdicao(slotProps.item)" />
+                                    <Button label="Cancelar" icon="pi pi-times" size="small" severity="secondary" @click="cancelarEdicao(slotProps.item)" />
+                                </div>
+                            </div>
+                            <div v-else>
+                                <!-- Mudança de Status -->
+                                <div v-if="slotProps.item.alterou_status && slotProps.item.status_anterior && slotProps.item.status_novo" class="mb-3">
+                                    <div class="flex align-items-center gap-2 mb-2">
+                                        <Tag 
+                                            :value="getStatusDisplay(slotProps.item.status_anterior)" 
+                                            :severity="getStatusSeverity(slotProps.item.status_anterior)"
+                                            class="text-xs"
+                                        />
+                                        <i class="pi pi-arrow-right text-sm text-color-secondary"></i>
+                                        <Tag 
+                                            :value="getStatusDisplay(slotProps.item.status_novo)" 
+                                            :severity="getStatusSeverity(slotProps.item.status_novo)"
+                                            class="text-xs"
+                                        />
+                                        <span v-if="slotProps.item.encaminhado_para_nome" class="ml-2 text-sm text-color-secondary">
+                                            <i class="pi pi-arrow-right"></i> {{ slotProps.item.encaminhado_para_nome }}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Despacho -->
+                                <p class="mb-2" style="white-space: pre-wrap;">{{ slotProps.item.despacho }}</p>
+                                
+                                <!-- Metadados -->
+                                <div class="flex align-items-center gap-3 text-sm text-color-secondary mt-2 pt-2 border-top-1 surface-border">
+                                    <span>
+                                        <i class="pi pi-user mr-1"></i>
+                                        {{ slotProps.item.usuario_nome || 'Sistema' }}
+                                    </span>
+                                    <span>
+                                        <i class="pi pi-calendar mr-1"></i>
+                                        {{ new Date(slotProps.item.data_tramitacao).toLocaleString('pt-BR') }}
+                                    </span>
+                                    <div class="flex-grow-1"></div>
+                                    <Button 
+                                        icon="pi pi-pencil" 
+                                        rounded 
+                                        text 
+                                        size="small" 
+                                        @click="toggleEdicao(slotProps.item)"
+                                        v-tooltip.top="'Editar'"
+                                    />
+                                    <Button 
+                                        icon="pi pi-trash" 
+                                        rounded 
+                                        text 
+                                        severity="danger" 
+                                        size="small" 
+                                        @click="confirmarExclusao(slotProps.item)"
+                                        v-tooltip.top="'Excluir'"
+                                    />
+                                </div>
+                            </div>
+                        </template>
+                    </Card>
                 </template>
               </Timeline>
 
@@ -336,22 +368,6 @@ const gerarPdfDetalhado = async () => {
                 </div>
               </div>
 
-              <hr>
-
-              <h4>Adicionar Novo Andamento</h4>
-              <div class="novo-despacho-form">
-                  <div class="p-fluid">
-                      <Textarea v-model="novaTramitacaoTexto" rows="3" placeholder="Digite a nota de progresso aqui..." autoResize />
-                  </div>
-
-                  <div class="field mt-3">
-                      <ToggleButton v-model="notificarMunicipe" onLabel="Notificar Munícipe" offLabel="Não Notificar Munícipe" onIcon="pi pi-check" offIcon="pi pi-times" class="w-full sm:w-auto" />
-                  </div>
-
-                  <div class="flex justify-content-end mt-3">
-                      <Button label="Salvar Nota" icon="pi pi-check" @click="salvarNovaTramitacao" :loading="isSavingTramitacao" />
-                  </div>
-              </div>
             </div>
           </div>
         </template>
@@ -381,15 +397,27 @@ const gerarPdfDetalhado = async () => {
     gap: 0.5rem; /* Adicione esta linha */
 }
 hr { margin: 1.5rem 0; border: 0; border-top: 1px solid #dee2e6; }
-/* Força o container do checkbox a ter um display flexível */
-.p-checkbox {
+
+/* Timeline melhorada */
+.custom-timeline :deep(.p-timeline-event-marker) {
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
+  justify-content: center;
+  background: var(--surface-ground);
+  border: 2px solid var(--primary-color);
 }
 
-/* Garante que a "caixa" do checkbox tenha um tamanho visível */
-.p-checkbox-box {
-  width: 20px;
-  height: 20px;
+.timeline-marker {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-timeline :deep(.p-timeline-event-content) {
+  padding-left: 1rem;
 }
 </style>
