@@ -39,6 +39,7 @@ const statusOptions = ref([
     { label: 'Todos', value: null },
     { label: 'Aberto', value: 'ABERTO' },
     { label: 'Em Análise', value: 'EM_ANALISE' },
+    { label: 'Encaminhado', value: 'ENCAMINHADO' },
     { label: 'Concluído', value: 'CONCLUIDO' },
     { label: 'Arquivado', value: 'ARQUIVADO' },
 ]);

@@ -141,16 +141,34 @@ const abrirDialogoParaEdicao = (municipe) => {
 };
 
 const aoSalvarMunicipe = (contatoSalvo) => {
-    const index = todosMunicipes.value.findIndex(m => m.id === contatoSalvo.id);
-    if (index !== -1) {
-        todosMunicipes.value[index] = contatoSalvo;
-        const indexNaTela = municipesNaTela.value.findIndex(m => m.id === contatoSalvo.id);
+    // Verifica se é uma edição (contato já existia) ou criação (novo contato)
+    const indexEmTodos = todosMunicipes.value.findIndex(m => m.id === contatoSalvo.id);
+    const indexNaTela = municipesNaTela.value.findIndex(m => m.id === contatoSalvo.id);
+    
+    if (indexEmTodos !== -1) {
+        // É uma edição - atualiza o contato existente
+        todosMunicipes.value[indexEmTodos] = contatoSalvo;
+        
+        // Atualiza na tela também se estiver visível
         if (indexNaTela !== -1) {
             municipesNaTela.value[indexNaTela] = contatoSalvo;
         }
+        // Se não está na tela (por causa de filtros), não faz nada
+        // O contato já foi atualizado em todosMunicipes
     } else {
+        // É um novo contato - adiciona no início
         todosMunicipes.value.unshift(contatoSalvo);
-        municipesNaTela.value.unshift(contatoSalvo);
+        
+        // Só adiciona na tela se não houver filtros ativos
+        // ou se o contato passar pelos filtros
+        const temFiltrosAtivos = filtroTexto.value || filtroLetra.value || (filtroCategorias.value && filtroCategorias.value.length > 0);
+        if (!temFiltrosAtivos) {
+            // Sem filtros, adiciona diretamente
+            municipesNaTela.value.unshift(contatoSalvo);
+        } else {
+            // Com filtros, recarrega para garantir que o novo contato seja filtrado corretamente
+            aplicarFiltros();
+        }
     }
     
     showMunicipeModal.value = false;
