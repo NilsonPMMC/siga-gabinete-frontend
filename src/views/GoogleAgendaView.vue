@@ -61,9 +61,26 @@ const gerarRelatorioPDF = async () => {
     }
     isGeneratingReport.value = true;
     try {
+        // Ajusta datas para sempre começar na segunda-feira e terminar no domingo
+        const dataInicioOriginal = new Date(filtroDataRelatorio.value[0]);
+        const dataFimOriginal = new Date(filtroDataRelatorio.value[1]);
+        
+        // Calcula segunda-feira da semana que contém a data inicial
+        // getDay() retorna: 0=Domingo, 1=Segunda, ..., 6=Sábado
+        const diaSemanaInicio = dataInicioOriginal.getDay();
+        const diasParaVoltar = diaSemanaInicio === 0 ? 6 : diaSemanaInicio - 1; // Se domingo, volta 6 dias; senão volta (dia-1)
+        const dataInicioAjustada = new Date(dataInicioOriginal);
+        dataInicioAjustada.setDate(dataInicioOriginal.getDate() - diasParaVoltar);
+        
+        // Calcula domingo da semana que contém a data final
+        const diaSemanaFim = dataFimOriginal.getDay();
+        const diasParaAvancar = diaSemanaFim === 0 ? 0 : 7 - diaSemanaFim; // Se domingo, não avança; senão avança até domingo
+        const dataFimAjustada = new Date(dataFimOriginal);
+        dataFimAjustada.setDate(dataFimOriginal.getDate() + diasParaAvancar);
+        
         const params = {
-            data_inicio: filtroDataRelatorio.value[0].toISOString().slice(0, 10),
-            data_fim: filtroDataRelatorio.value[1].toISOString().slice(0, 10),
+            data_inicio: dataInicioAjustada.toISOString().slice(0, 10),
+            data_fim: dataFimAjustada.toISOString().slice(0, 10),
         };
         const response = await apiClient.get('/api/relatorios/google-agenda/pdf/', { 
             params,

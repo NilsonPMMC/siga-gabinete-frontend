@@ -61,8 +61,20 @@ const confirmarImpressao = async () => {
     }
 
     const agenda = agendaSelecionada.value;
-    const dataInicio = datasSelecionadas.value[0];
-    const dataFim = datasSelecionadas.value[1] ? datasSelecionadas.value[1] : dataInicio;
+    const dataInicioOriginal = datasSelecionadas.value[0];
+    const dataFimOriginal = datasSelecionadas.value[1] ? datasSelecionadas.value[1] : dataInicioOriginal;
+
+    // Ajusta datas para sempre começar na segunda-feira e terminar no domingo
+    // getDay() retorna: 0=Domingo, 1=Segunda, ..., 6=Sábado
+    const diaSemanaInicio = dataInicioOriginal.getDay();
+    const diasParaVoltar = diaSemanaInicio === 0 ? 6 : diaSemanaInicio - 1; // Se domingo, volta 6 dias; senão volta (dia-1)
+    const dataInicioAjustada = new Date(dataInicioOriginal);
+    dataInicioAjustada.setDate(dataInicioOriginal.getDate() - diasParaVoltar);
+    
+    const diaSemanaFim = dataFimOriginal.getDay();
+    const diasParaAvancar = diaSemanaFim === 0 ? 0 : 7 - diaSemanaFim; // Se domingo, não avança; senão avança até domingo
+    const dataFimAjustada = new Date(dataFimOriginal);
+    dataFimAjustada.setDate(dataFimOriginal.getDate() + diasParaAvancar);
 
     showDateDialog.value = false; // Fecha modal
     downloadingId.value = agenda.id; // Ativa loading no botão específico
@@ -73,8 +85,8 @@ const confirmarImpressao = async () => {
         const response = await apiClient.get('/api/relatorios/google-agenda/pdf/', {
             params: { 
                 agenda_id: agenda.id,
-                data_inicio: format(dataInicio, 'yyyy-MM-dd'),
-                data_fim: format(dataFim, 'yyyy-MM-dd')
+                data_inicio: format(dataInicioAjustada, 'yyyy-MM-dd'),
+                data_fim: format(dataFimAjustada, 'yyyy-MM-dd')
             },
             responseType: 'blob'
         });
@@ -84,8 +96,8 @@ const confirmarImpressao = async () => {
         const link = document.createElement('a');
         link.href = url;
         
-        // Nome do arquivo: Agenda_Nome_01-02_a_05-02.pdf
-        const nomeArquivo = `Agenda_${agenda.nome.replace(/\s+/g, '_')}_${format(dataInicio, 'dd-MM')}_a_${format(dataFim, 'dd-MM')}.pdf`;
+        // Nome do arquivo: Agenda_Nome_01-02_a_05-02.pdf (usa datas originais no nome)
+        const nomeArquivo = `Agenda_${agenda.nome.replace(/\s+/g, '_')}_${format(dataInicioOriginal, 'dd-MM')}_a_${format(dataFimOriginal, 'dd-MM')}.pdf`;
         link.setAttribute('download', nomeArquivo);
         
         document.body.appendChild(link);
