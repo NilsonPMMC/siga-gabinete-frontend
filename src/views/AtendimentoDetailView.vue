@@ -17,6 +17,7 @@ import Dropdown from 'primevue/dropdown';
 import MultiSelect from 'primevue/multiselect';
 import ToggleButton from 'primevue/togglebutton';
 import ConfirmDialog from 'primevue/confirmdialog';
+import AlterarStatusModal from '@/components/atendimentos/AlterarStatusModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -26,55 +27,56 @@ const confirm = useConfirm();
 
 const atendimento = ref(null);
 const isLoading = ref(true);
+const showAlterarStatusModal = ref(false);
 
-// Opções para o dropdown de Status (poderíamos buscar da API também no futuro)
-const statusOptions = ref([
-    { name: 'Aberto', code: 'ABERTO' },
-    { name: 'Em Análise', code: 'EM_ANALISE' },
-    { name: 'Encaminhado', code: 'ENCAMINHADO' },
-    { name: 'Concluído', code: 'CONCLUIDO' },
-    { name: 'Arquivado', code: 'ARQUIVADO' },
-]);
 const todasCategorias = ref([]);
 
 onMounted(async () => {
-  if (!authStore.isAuthenticated) {
-    isLoading.value = false;
-    return;
-  }
-  const atendimentoId = route.params.id;
-  try {
-    const [atendimentoRes, categoriasRes] = await Promise.all([
-        apiClient.get(`/api/atendimentos/${atendimentoId}/`),
-        apiClient.get('/api/categorias/')
-    ]);
-
-    atendimento.value = {
-        ...atendimentoRes.data,
-        categorias: atendimentoRes.data.categorias.map(c => c.id)
-    };
-    todasCategorias.value = categoriasRes.data;
-
-  } catch (error) { console.error("Erro ao buscar dados:", error); } 
-  finally { isLoading.value = false; }
+  await carregarAtendimento();
 });
 
 const salvarAlteracoes = async () => {
     try {
+        // Status não pode mais ser alterado diretamente - removido do payload
         const payload = {
-            status: atendimento.value.status,
             categorias_ids: atendimento.value.categorias 
         };
         const response = await apiClient.patch(`/api/atendimentos/${atendimento.value.id}/`, payload);
 
-        atendimento.value.status = response.data.status;
         atendimento.value.categorias = response.data.categorias.map(c => c.id);
 
-        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Atendimento atualizado.', life: 3000 });
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Categorias atualizadas.', life: 3000 });
     } catch (error) {
         console.error("Erro ao atualizar atendimento:", error.response?.data);
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível atualizar o atendimento.', life: 3000 });
     }
+};
+
+const carregarAtendimento = async () => {
+    if (!authStore.isAuthenticated) {
+        isLoading.value = false;
+        return;
+    }
+    const atendimentoId = route.params.id;
+    try {
+        const [atendimentoRes, categoriasRes] = await Promise.all([
+            apiClient.get(`/api/atendimentos/${atendimentoId}/`),
+            apiClient.get('/api/categorias/')
+        ]);
+
+        atendimento.value = {
+            ...atendimentoRes.data,
+            categorias: atendimentoRes.data.categorias.map(c => c.id)
+        };
+        todasCategorias.value = categoriasRes.data;
+
+    } catch (error) { console.error("Erro ao buscar dados:", error); } 
+    finally { isLoading.value = false; }
+};
+
+const aoStatusAlterado = async () => {
+    // Recarrega o atendimento para obter dados atualizados
+    await carregarAtendimento();
 };
 
 const novaTramitacaoTexto = ref('');
@@ -227,15 +229,30 @@ const gerarPdfDetalhado = async () => {
             <div class="col-12 md:col-3">
               <div class="p-fluid">
                 <h4>Gerenciar Atendimento</h4>
+                
+                <!-- Status (somente visualização) -->
                 <div class="field">
-                    <label for="status">Status do Atendimento</label>
-                    <Dropdown id="status" v-model="atendimento.status" :options="statusOptions" optionLabel="name" optionValue="code" placeholder="Selecione o status" />
+                    <label>Status do Atendimento</label>
+                    <div class="flex align-items-center gap-2">
+                        <Tag :value="atendimento.status" :severity="getStatusSeverity(atendimento.status)" />
+                        <Button 
+                            icon="pi pi-pencil" 
+                            @click="showAlterarStatusModal = true" 
+                            rounded 
+                            text 
+                            size="small"
+                            v-tooltip.top="'Alterar Status'"
+                        />
+                    </div>
+                    <small class="p-text-secondary">Clique no ícone para alterar o status</small>
                 </div>
+                
+                <!-- Categorias -->
                 <div class="field">
                     <label for="categorias">Categorias</label>
                     <MultiSelect id="categorias" v-model="atendimento.categorias" :options="todasCategorias" optionLabel="nome" optionValue="id" placeholder="Selecione as categorias" display="chip" />
                 </div>
-                <Button label="Salvar Alterações" icon="pi pi-save" @click="salvarAlteracoes" class="mt-2" />
+                <Button label="Salvar Categorias" icon="pi pi-save" @click="salvarAlteracoes" class="mt-2" />
               </div>
 
             </div>
@@ -264,7 +281,20 @@ const gerarPdfDetalhado = async () => {
                 </template>
                 <template #content="slotProps">
                     <Textarea v-if="slotProps.item.editando" v-model="slotProps.item.textoEditado" rows="2" autoResize class="w-full mb-2" />
-                    <p v-else><strong>{{ slotProps.item.despacho }}</strong></p>
+                    <div v-else>
+                        <p><strong>{{ slotProps.item.despacho }}</strong></p>
+                        <!-- Mostrar mudança de status se houver -->
+                        <div v-if="slotProps.item.alterou_status && slotProps.item.status_anterior && slotProps.item.status_novo" class="mt-2">
+                            <Tag 
+                                :value="`Status: ${slotProps.item.status_anterior_display || slotProps.item.status_anterior} → ${slotProps.item.status_novo_display || slotProps.item.status_novo}`" 
+                                severity="info" 
+                                class="text-xs"
+                            />
+                            <span v-if="slotProps.item.encaminhado_para_nome" class="ml-2 text-sm text-color-secondary">
+                                → {{ slotProps.item.encaminhado_para_nome }}
+                            </span>
+                        </div>
+                    </div>
                     <small>Por: {{ slotProps.item.usuario_nome || 'Sistema' }} em {{ new Date(slotProps.item.data_tramitacao).toLocaleString('pt-BR') }}</small>
                 </template>
                 <template #opposite="slotProps">
@@ -331,6 +361,14 @@ const gerarPdfDetalhado = async () => {
     <div v-else>
       <p>Atendimento não encontrado. <a href="/">Voltar para o Dashboard</a>.</p>
     </div>
+
+    <!-- Modal de Alterar Status -->
+    <AlterarStatusModal 
+      v-model:visible="showAlterarStatusModal"
+      :atendimento-id="atendimento?.id"
+      :status-atual="atendimento?.status"
+      @status-alterado="aoStatusAlterado"
+    />
   </div>
 </template>
 <style scoped>
