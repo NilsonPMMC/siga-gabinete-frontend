@@ -1,6 +1,7 @@
 <template>
   <Dialog 
-    v-model:visible="visible" 
+    :visible="visible" 
+    @update:visible="$emit('update:visible', $event)"
     modal 
     :header="'Alterar Status do Atendimento'" 
     :style="{ width: '600px' }"
