@@ -19,8 +19,10 @@ const filtroStatus = ref(null);
 const filtroConta = ref(null);
 const contasOptions = ref([]);
 const statusOptions = ref([
+    { label: 'Todos', value: null },
     { label: 'Aberto', value: 'ABERTO' },
     { label: 'Em Análise', value: 'EM_ANALISE' },
+    { label: 'Encaminhado', value: 'ENCAMINHADO' },
     { label: 'Concluído', value: 'CONCLUIDO' },
     { label: 'Arquivado', value: 'ARQUIVADO' },
 ]);
@@ -44,29 +46,48 @@ onMounted(async () => {
 });
 
 const getStatusSeverity = (status) => {
-    const map = { 'ABERTO': 'info', 'EM_ANALISE': 'warning', 'CONCLUIDO': 'success', 'ARQUIVADO': 'secondary' };
+    const map = { 
+        'ABERTO': 'info', 
+        'EM_ANALISE': 'warning', 
+        'ENCAMINHADO': 'warning',
+        'CONCLUIDO': 'success', 
+        'ARQUIVADO': 'secondary' 
+    };
     return map[status] || 'secondary';
 };
 
-const aplicarFiltros = () => {
-    let items = [...todosAtendimentos.value];
-    if (filtroTexto.value) {
-        const busca = filtroTexto.value.toLowerCase();
-        items = items.filter(at =>
-            (at.protocolo && at.protocolo.toLowerCase().includes(busca)) ||
-            (at.titulo && at.titulo.toLowerCase().includes(busca))
-        );
+const aplicarFiltros = async () => {
+    isLoading.value = true;
+    try {
+        const params = {};
+        if (filtroTexto.value) params.q = filtroTexto.value;
+        if (filtroStatus.value) params.status = filtroStatus.value;
+        if (filtroConta.value) params.conta_id = filtroConta.value;
+
+        const response = await apiClient.get('/api/atendimentos/', { params });
+        atendimentosNaTela.value = response.data;
+        todosAtendimentos.value = response.data; // Atualiza também a lista completa
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível aplicar os filtros.' });
+    } finally {
+        isLoading.value = false;
     }
-    if (filtroStatus.value) items = items.filter(at => at.status === filtroStatus.value);
-    if (filtroConta.value) items = items.filter(at => at.conta === filtroConta.value);
-    atendimentosNaTela.value = items;
 };
 
-const limparFiltros = () => {
+const limparFiltros = async () => {
     filtroTexto.value = '';
     filtroStatus.value = null;
     filtroConta.value = null;
-    atendimentosNaTela.value = [...todosAtendimentos.value];
+    isLoading.value = true;
+    try {
+        const response = await apiClient.get('/api/atendimentos/');
+        todosAtendimentos.value = response.data;
+        atendimentosNaTela.value = response.data;
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível recarregar os atendimentos.' });
+    } finally {
+        isLoading.value = false;
+    }
 };
 
 const verDetalhes = (id) => router.push(`/atendimentos/${id}`);
@@ -111,16 +132,16 @@ const podeEditarOuExcluirAtendimento = (atendimento) => authStore.user?.is_super
       <template #content>
         <div class="grid formgrid p-fluid align-items-end">
           <div class="field col-12 md:col-5">
-            <label for="filtroTexto">Buscar por Protocolo ou Título</label>
+            <label for="filtroTexto">Buscar por Protocolo, Título, Nome do Munícipe ou Nome Fantasia</label>
             <InputText id="filtroTexto" v-model="filtroTexto" placeholder="Digite aqui..." @keyup.enter="aplicarFiltros" />
           </div>
           <div class="field col-12 md:col-3">
             <label for="filtroStatus">Status</label>
-            <Dropdown id="filtroStatus" v-model="filtroStatus" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear />
+            <Dropdown id="filtroStatus" v-model="filtroStatus" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros" />
           </div>
           <div class="field col-12 md:col-3" v-if="authStore.user?.is_superuser || authStore.isRecepcao">
             <label for="filtroConta">Gabinete</label>
-            <Dropdown id="filtroConta" v-model="filtroConta" :options="contasOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear />
+            <Dropdown id="filtroConta" v-model="filtroConta" :options="contasOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros" />
           </div>
           <div class="field col-12 md:col-4 flex justify-content-start gap-2">
             <Button label="Filtrar" icon="pi pi-filter" @click="aplicarFiltros" />
@@ -152,7 +173,7 @@ const podeEditarOuExcluirAtendimento = (atendimento) => authStore.user?.is_super
         </Column>
         <Column field="status" header="Status" sortable>
           <template #body="slotProps">
-            <Tag :value="slotProps.data.status.replace('_', ' ')" :severity="getStatusSeverity(slotProps.data.status)" />
+            <Tag :value="slotProps.data.status.replace(/_/g, ' ')" :severity="getStatusSeverity(slotProps.data.status)" />
           </template>
         </Column>
         <Column header="Ações" style="width: 8rem; text-align: center; display:flex; justify-content: center;">

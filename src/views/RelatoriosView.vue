@@ -44,6 +44,29 @@ const statusOptions = ref([
     { label: 'Arquivado', value: 'ARQUIVADO' },
 ]);
 
+// Função auxiliar para converter data do Calendar para formato YYYY-MM-DD
+const formatarDataParaAPI = (data) => {
+  if (!data) return null;
+  if (data instanceof Date) {
+    return data.toISOString().slice(0, 10);
+  }
+  // Se for string, tenta converter
+  try {
+    const dataObj = new Date(data);
+    return dataObj.toISOString().slice(0, 10);
+  } catch {
+    return null;
+  }
+};
+
+// Função que busca automaticamente quando ambas as datas são selecionadas
+const buscarAoSelecionarData = () => {
+  // Só busca automaticamente se ambas as datas estiverem preenchidas
+  if (dataInicio.value && dataFim.value) {
+    fetchReportsData();
+  }
+};
+
 // Função central que busca os dados, aplicando os filtros
 const fetchReportsData = async () => {
   if (!authStore.isAuthenticated) {
@@ -51,9 +74,15 @@ const fetchReportsData = async () => {
     return;
   }
 
+  isLoading.value = true;
   const params = {};
-  if (dataInicio.value) params.data_inicio = new Date(dataInicio.value).toISOString().slice(0, 10);
-  if (dataFim.value) params.data_fim = new Date(dataFim.value).toISOString().slice(0, 10);
+  
+  // Converter datas corretamente - Calendar retorna Date object
+  const dataInicioFormatada = formatarDataParaAPI(dataInicio.value);
+  const dataFimFormatada = formatarDataParaAPI(dataFim.value);
+  
+  if (dataInicioFormatada) params.data_inicio = dataInicioFormatada;
+  if (dataFimFormatada) params.data_fim = dataFimFormatada;
   if (filtroConta.value) params.conta_id = filtroConta.value;
   if (filtroStatus.value) params.status = filtroStatus.value;
 
@@ -67,6 +96,7 @@ const fetchReportsData = async () => {
     relatorioConta.value = resConta.data;
     relatorioCategoria.value = resCategoria.data;
   } catch (error) {
+    console.error('Erro ao buscar relatórios:', error);
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os relatórios.' });
   } finally {
     isLoading.value = false;
@@ -77,8 +107,10 @@ const fetchReportsData = async () => {
 const exportarPDF = async () => {
     isExporting.value = true;
     const params = {};
-    if (dataInicio.value) params.data_inicio = new Date(dataInicio.value).toISOString().slice(0, 10);
-    if (dataFim.value) params.data_fim = new Date(dataFim.value).toISOString().slice(0, 10);
+    const dataInicioFormatada = formatarDataParaAPI(dataInicio.value);
+    const dataFimFormatada = formatarDataParaAPI(dataFim.value);
+    if (dataInicioFormatada) params.data_inicio = dataInicioFormatada;
+    if (dataFimFormatada) params.data_fim = dataFimFormatada;
     if (filtroConta.value) params.conta_id = filtroConta.value;
     if (filtroStatus.value) params.status = filtroStatus.value;
 
@@ -128,11 +160,11 @@ onMounted(async () => {
             <div class="grid formgrid p-fluid align-items-end gap-3">
                 <div class="field col">
                     <label for="dataInicio">Data de Início</label>
-                    <Calendar id="dataInicio" v-model="dataInicio" dateFormat="dd/mm/yy" appendTo="body" />
+                    <Calendar id="dataInicio" v-model="dataInicio" dateFormat="dd/mm/yy" appendTo="body" showIcon @date-select="buscarAoSelecionarData" />
                 </div>
                 <div class="field col">
                     <label for="dataFim">Data de Fim</label>
-                    <Calendar id="dataFim" v-model="dataFim" dateFormat="dd/mm/yy" appendTo="body" />
+                    <Calendar id="dataFim" v-model="dataFim" dateFormat="dd/mm/yy" appendTo="body" showIcon @date-select="buscarAoSelecionarData" />
                 </div>
                 <div class="field col" v-if="authStore.user?.is_superuser || authStore.isRecepcao">
                   <label for="filtroConta">Gabinete</label>
