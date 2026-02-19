@@ -29,7 +29,13 @@ watch(() => props.duplicadoInicial, (val) => {
 const buscarMunicipes = async (event) => {
     if (!event.query.trim()) return;
     try {
-        const res = await apiClient.get('/api/municipes/lookup/', { params: { q: event.query } });
+        const params = { q: event.query };
+        // Excluir o duplicado da lista de sugestões para o principal (herdeiro)
+        // Isso evita que o contato que será excluído apareça como opção de herdeiro
+        if (duplicado.value?.id) {
+            params.exclude_id = duplicado.value.id;
+        }
+        const res = await apiClient.get('/api/municipes/lookup/', { params });
         sugestoes.value = res.data;
     } catch (e) { console.error(e); }
 };
