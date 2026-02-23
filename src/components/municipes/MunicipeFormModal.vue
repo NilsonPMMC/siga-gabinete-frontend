@@ -361,14 +361,14 @@ const salvarMunicipe = async () => {
         // O objeto base agora é o que voltou do servidor (com ID garantido)
         let objetoFinal = response.data;
 
-        // 2. Upload da Foto (PATCH)
-        if (fotoArquivoParaUpload.value) {
+        // 2. Upload da Foto (PATCH) — usa o ID do registro salvo (edição ou criação)
+        const idParaFoto = objetoFinal?.id ?? localId.value ?? idParaSalvar;
+        if (fotoArquivoParaUpload.value && idParaFoto) {
             const formData = new FormData();
             formData.append('foto', fotoArquivoParaUpload.value, 'foto_perfil.jpg');
 
             try {
-                // Usa o localId que garantimos acima
-                const resUpload = await apiClient.patch(`/api/municipes/${localId.value}/`, formData, {
+                const resUpload = await apiClient.patch(`/api/municipes/${idParaFoto}/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 

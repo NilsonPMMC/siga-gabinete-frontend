@@ -2,8 +2,15 @@ import axios from 'axios';
 import { useAuthStore } from '@/stores/auth';
 //import router from './router';
 
+// Em desenvolvimento (localhost) usa o backend local; em produção usa a URL do servidor
+// Aceita VITE_API_BASE_URL ou VITE_API_URL no .env (ex.: .env.local com VITE_API_URL=http://localhost:8000)
+const envApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+const baseURL = import.meta.env.DEV
+  ? (envApiUrl || 'http://localhost:8000')
+  : (envApiUrl || 'https://gabinete.mogidascruzes.sp.gov.br');
+
 const apiClient = axios.create({
-  baseURL: 'https://gabinete.mogidascruzes.sp.gov.br',
+  baseURL,
 });
 
 // Interceptor para adicionar o token de acesso em cada requisição
