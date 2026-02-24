@@ -148,17 +148,10 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/oficios/editar/:id', // O :id é o parâmetro que receberemos
+      path: '/oficios/editar/:id',
       name: 'oficios-editar',
       component: () => import('../views/oficios/OficioFormView.vue'),
-      props: true, // Passa o :id como prop para o componente
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/oficios/editar/:id', // O :id é o parâmetro que receberemos
-      name: 'oficios-editar',
-      component: () => import('../views/oficios/OficioFormView.vue'),
-      props: true, // Passa o :id como prop para o componente
+      props: true,
       meta: { requiresAuth: true }
     },
     {

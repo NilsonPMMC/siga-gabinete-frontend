@@ -24,7 +24,11 @@
             <DataTable :value="municipes" :loading="loading" responsiveLayout="scroll">
                 <template #empty>Nenhum contato nesta lista.</template>
                 <Column field="nome_completo" header="Nome" :sortable="true"></Column>
-                <Column field="cargo" header="Cargo"></Column>
+                <Column header="Cargo(s) / Órgão(s)">
+                    <template #body="slotProps">
+                        {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}
+                    </template>
+                </Column>
                 <Column header="E-mail Principal">
                     <template #body="slotProps">
                         {{ getEmailPrincipal(slotProps.data.emails) }}
@@ -57,7 +61,9 @@
                             <small v-if="slotProps.item.nome_de_guerra" class="text-sm text-primary-500 font-italic">
                                 {{ slotProps.item.nome_de_guerra }}
                             </small>
-                            <small v-if="slotProps.item.cargo" class="text-sm text-color-secondary">{{ slotProps.item.cargo }}</small>
+                            <small v-if="formatarPerfis(slotProps.item.perfis, slotProps.item.cargo, slotProps.item.orgao)" class="text-sm text-color-secondary">
+                                {{ formatarPerfis(slotProps.item.perfis, slotProps.item.cargo, slotProps.item.orgao) }}
+                            </small>
                         </div>
                     </template>
                 </AutoComplete>
@@ -93,6 +99,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import apiClient from '@/api';
+import { formatarPerfis } from '@/services/comum';
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 import eventosService from '@/services/eventos';

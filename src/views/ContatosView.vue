@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import apiClient from '@/api';
+import { formatarPerfis } from '@/services/comum';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
 import { useConfirm } from "primevue/useconfirm";
@@ -465,8 +466,11 @@ const executarAtualizacaoCategoriaLote = async () => {
           </template>
         </Column>
         <Column field="categoria_nome" header="Categoria" sortable></Column>
-        <Column field="cargo" header="Cargo" sortable></Column>
-        <Column field="orgao" header="Orgão" sortable></Column>
+        <Column header="Cargo(s) / Órgão(s)">
+          <template #body="slotProps">
+            {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}
+          </template>
+        </Column>
         <Column field="emails" header="Email Principal">
             <template #body="slotProps">
                 <div class="flex align-items-center gap-2" v-if="slotProps.data.emails?.[0]?.email">
@@ -516,7 +520,9 @@ const executarAtualizacaoCategoriaLote = async () => {
     <Dialog v-model:visible="dialogoAniversariantesVisivel" :header="`Aniversariantes do dia ${dataAniversariantesFormatada}`" modal :style="{ width: '1000px' }">
         <DataTable :value="aniversariantes" size="small" paginator :rows="10">
             <Column field="nome_completo" header="Nome" sortable></Column>
-            <Column field="cargo" header="Cargo"></Column>
+            <Column header="Cargo(s) / Órgão(s)">
+                <template #body="{ data }">{{ formatarPerfis(data.perfis, data.cargo, data.orgao) || '—' }}</template>
+            </Column>
             <Column field="telefones" header="Telefone">
                 <template #body="{ data }">{{ data.telefones?.[0]?.numero || 'N/D' }}</template>
             </Column>

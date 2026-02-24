@@ -79,7 +79,7 @@ const salvarAlteracoes = async (novoStatus) => {
 
   try {
     const response = await apiClient.patch(`/api/solicitacoes-agenda/${solicitacaoId}/`, payload);
-    const index = solicitacoes.value.findIndex(s => s.id === solicitacaoId);
+    const index = todasSolicitacoes.value.findIndex(s => s.id === solicitacaoId);
     if (index !== -1) {
       todasSolicitacoes.value[index] = response.data;
       solicitacoesNaTela.value[index] = response.data;
@@ -187,9 +187,10 @@ const exportarPDF = async () => {
           </div>
         </template>
       </Column>
-      <Column field="data_criacao" header="Data Solic." sortable><template #body="slotProps">{{ new Date(slotProps.data.data_criacao).toLocaleDateString('pt-BR') }}</template></Column>
       <Column field="solicitante_nome" header="Solicitante" sortable></Column>
-      <Column field="solicitante.cargo_orgao" header="Cargo/Órgão"></Column>
+      <Column header="Cargo(s) / Órgão(s)">
+        <template #body="slotProps">{{ slotProps.data.solicitante_perfis_resumo || '—' }}</template>
+      </Column>
       <Column field="assunto" header="Assunto"></Column>
       <Column field="status" header="Status" sortable><template #body="slotProps"><Tag :value="slotProps.data.status.replace('_', ' ')" /></template></Column>
     </DataTable>

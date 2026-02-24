@@ -53,8 +53,11 @@
                 <Column selectionMode="multiple" headerStyle="width: 3em"></Column>
                 <Column field="nome_completo" header="Nome" sortable></Column>
                 <Column field="categoria_nome" header="Categoria" sortable></Column>
-                <Column field="cargo" header="Cargo"></Column>
-                <Column field="orgao" header="Orgão/Instituição"></Column>
+                <Column header="Cargo(s) / Órgão(s)">
+                    <template #body="slotProps">
+                        {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}
+                    </template>
+                </Column>
                 
                 <template #empty>Nenhum contato encontrado.</template>
             </DataTable>
@@ -150,7 +153,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useToast } from "primevue/usetoast";
 import apiClient from '@/api';
 // Imports de serviços
-import { getMunicipesPaginado } from '@/services/comum';
+import { getMunicipesPaginado, formatarPerfis } from '@/services/comum';
 import contatosService from '@/services/contatos'; // Importamos o serviço de contatos para pegar categorias
 import { fetchEtiquetaTemplates, gerarEtiquetas } from '@/services/etiquetas';
 

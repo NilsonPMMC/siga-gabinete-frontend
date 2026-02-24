@@ -526,7 +526,7 @@ const abrirModalCompartilhamento = () => {
                                 <Avatar :image="data.foto_municipe" shape="circle" icon="pi pi-user" />
                                 <div class="flex flex-column">
                                     <span class="font-medium">{{ data.nome_municipe }}</span>
-                                    <small class="text-gray-500">{{ data.cargo_municipe }}</small>
+                                    <small class="text-gray-500">{{ data.perfis_municipe_resumo || data.cargo_municipe || data.empresa_municipe || '—' }}</small>
                                 </div>
                             </div>
                         </template>

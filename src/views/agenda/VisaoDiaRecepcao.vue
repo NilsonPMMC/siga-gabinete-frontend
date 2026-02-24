@@ -193,7 +193,7 @@ function formatarHora(isoString) {
                                     <Avatar :image="convidado.foto_municipe" icon="pi pi-user" shape="circle" size="large" class="flex-shrink-0" />
                                     <div class="white-space-nowrap overflow-hidden text-overflow-ellipsis">
                                         <div class="font-bold text-900">{{ convidado.nome_municipe }}</div>
-                                        <div class="text-xs text-600">{{ convidado.cargo_municipe || convidado.empresa_municipe || 'Convidado' }}</div>
+                                        <div class="text-xs text-600">{{ convidado.perfis_municipe_resumo || convidado.cargo_municipe || convidado.empresa_municipe || 'Convidado' }}</div>
                                         <div v-if="convidado.observacao" class="text-xs text-orange-600 font-medium">
                                             <i class="pi pi-info-circle" style="font-size: 0.7rem"></i> {{ convidado.observacao }}
                                         </div>
