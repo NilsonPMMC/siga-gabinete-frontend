@@ -51,25 +51,25 @@
                 <template #empty>Nenhum convidado adicionado a este evento.</template>
                 <Column :rowReorder="true" headerStyle="width: 3rem" :reorderableColumn="false" />
                 <Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
-                <Column header="Nome" :sortable="true" sortField="municipe.nome_completo">
+                <Column header="Nome" :sortable="true" sortField="perfil.municipe.nome_completo">
                     <template #body="slotProps">
                         <div class="flex flex-column">
-                            <span class="font-bold">{{ slotProps.data.municipe.nome_completo }}</span>
-                            <small v-if="slotProps.data.municipe.nome_de_guerra" class="text-primary-500">{{ slotProps.data.municipe.nome_de_guerra }}</small>
+                            <span class="font-bold">{{ (slotProps.data.perfil?.municipe || slotProps.data.municipe)?.nome_completo }}</span>
+                            <small v-if="(slotProps.data.perfil?.municipe || slotProps.data.municipe)?.nome_de_guerra" class="text-primary-500">{{ (slotProps.data.perfil?.municipe || slotProps.data.municipe)?.nome_de_guerra }}</small>
                         </div>
                     </template>
                 </Column>
                 <Column header="Cargo / Órgão">
                     <template #body="slotProps">
                         <div class="flex flex-column">
-                            <span>{{ slotProps.data.municipe.cargo || 'Não informado' }}</span>
-                            <small v-if="slotProps.data.municipe.orgao" class="text-color-secondary">{{ slotProps.data.municipe.orgao }}</small>
+                            <span>{{ slotProps.data.perfil?.cargo || '—' }}</span>
+                            <small v-if="slotProps.data.perfil?.instituicao" class="text-color-secondary">{{ slotProps.data.perfil.instituicao }}</small>
                         </div>
                     </template>
                 </Column>
                 <Column header="Telefone">
                     <template #body="slotProps">
-                        {{ getTelefonePrincipal(slotProps.data.municipe.telefones) }}
+                        {{ getTelefonePrincipal((slotProps.data.perfil?.municipe || slotProps.data.municipe)?.telefones) }}
                     </template>
                 </Column>
                 <Column header="Presença" bodyClass="text-center" style="width: 8rem">
@@ -101,27 +101,54 @@
                     >
                         <template #item="slotProps">
                             <div class="flex flex-column align-items-start">
-                                <div>
-                                    {{ slotProps.item.nome_completo }}
-                                    </div>
-                                <small v-if="slotProps.item.nome_de_guerra" class="text-sm text-primary-500 font-italic">
-                                    {{ slotProps.item.nome_de_guerra }}
+                                <div>{{ slotProps.item.nome_completo }}</div>
+                                <small v-if="slotProps.item.nome_de_guerra" class="text-sm text-primary-500 font-italic">{{ slotProps.item.nome_de_guerra }}</small>
+                                <small v-if="(slotProps.item.perfis?.length && slotProps.item.perfis[0])" class="text-sm text-color-secondary">
+                                    {{ slotProps.item.perfis[0].cargo }} {{ slotProps.item.perfis[0].instituicao ? ' — ' + slotProps.item.perfis[0].instituicao : '' }}
                                 </small>
-                                <small v-if="slotProps.item.cargo" class="text-sm text-color-secondary">{{ slotProps.item.cargo }}</small>
+                                <small v-else-if="slotProps.item.cargo" class="text-sm text-color-secondary">{{ slotProps.item.cargo }}</small>
                             </div>
                         </template>
                     </AutoComplete>
-                    <Button 
-                        type="button"
-                        icon="pi pi-plus" 
-                        @click="abrirDialogoNovoMunicipe"
-                        title="Adicionar Novo Munícipe"
-                    />
+                    <Button type="button" icon="pi pi-plus" @click="abrirDialogoNovoMunicipe" title="Adicionar Novo Munícipe" />
+                </div>
+            </div>
+            <div v-if="municipeSelecionado && perfisAtivos.length > 1" class="field mt-3">
+                <label>Cargo / Órgão no convite</label>
+                <Dropdown
+                    v-model="perfilConviteSelecionado"
+                    :options="perfisComLabel"
+                    optionLabel="label"
+                    placeholder="Escolha qual perfil constar no convite"
+                    class="w-full"
+                />
+            </div>
+            <p v-if="municipeSelecionado && perfisAtivos.length === 0" class="text-sm text-amber-600 mt-2">
+                Este contato não possui perfil (cargo/órgão). Cadastre pelo menos um vínculo profissional na ficha do munícipe.
+            </p>
+            <template #footer>
+                <Button label="Cancelar" icon="pi pi-times" text @click="dialogoAdicionarVisivel = false" />
+                <Button label="Adicionar" icon="pi pi-check" @click="adicionarConvidado" :disabled="!podeAdicionarConvidado" />
+            </template>
+        </Dialog>
+
+        <Dialog v-model:visible="dialogoEscolhaPerfilVisivel" header="Escolha o perfil para o convite" :modal="true" :style="{ width: '480px' }">
+            <p class="mb-3">Selecione com qual cargo/órgão este contato será convidado:</p>
+            <div class="flex flex-col gap-2">
+                <div
+                    v-for="p in perfisComLabel"
+                    :key="p.id"
+                    class="surface-100 border-round p-3 cursor-pointer border-1 transition-colors transition-duration-150"
+                    :class="{ 'border-primary': perfilConviteSelecionado?.id === p.id }"
+                    @click="perfilConviteSelecionado = p"
+                >
+                    <span class="font-medium">{{ p.label }}</span>
+                    <small v-if="p.conta_nome" class="block text-color-secondary">{{ p.conta_nome }}</small>
                 </div>
             </div>
             <template #footer>
-                <Button label="Cancelar" icon="pi pi-times" text @click="dialogoAdicionarVisivel = false" />
-                <Button label="Adicionar" icon="pi pi-check" @click="adicionarConvidado" :disabled="!municipeSelecionado" />
+                <Button label="Cancelar" icon="pi pi-times" text @click="dialogoEscolhaPerfilVisivel = false" />
+                <Button label="Confirmar convite" icon="pi pi-check" @click="confirmarConviteComPerfil" :disabled="!perfilConviteSelecionado" />
             </template>
         </Dialog>
 
@@ -276,7 +303,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
 import apiClient from '@/api';
@@ -316,7 +343,29 @@ const downloadingPdf = ref({ presentes: false, crachas: false, prismas: false })
 const dialogoAdicionarVisivel = ref(false);
 const dialogoNovoMunicipeVisivel = ref(false);
 const municipeSelecionado = ref(null);
+const perfilConviteSelecionado = ref(null);
 const sugestoesMunicipes = ref([]);
+
+const perfisAtivos = computed(() => {
+    const perfis = municipeSelecionado.value?.perfis ?? [];
+    return perfis.filter(p => p.ativo !== false);
+});
+
+const perfisComLabel = computed(() => {
+    return perfisAtivos.value.map(p => ({
+        ...p,
+        label: [p.cargo, p.instituicao].filter(Boolean).join(' — ') || (p.conta_nome || 'Sem cargo/órgão')
+    }));
+});
+
+const podeAdicionarConvidado = computed(() => {
+    if (!municipeSelecionado.value) return false;
+    if (perfisAtivos.value.length === 0) return false;
+    if (perfisAtivos.value.length === 1) return true;
+    return !!perfilConviteSelecionado.value?.id;
+});
+
+const dialogoEscolhaPerfilVisivel = ref(false);
 let searchTimeout = null;
 const eventoId = route.params.id;
 
@@ -451,9 +500,19 @@ const baixarRelatorio = async (tipo) => {
 // --- LÓGICA DE ADICIONAR CONVIDADO ---
 const abrirDialogoAdicionar = () => {
     municipeSelecionado.value = null;
+    perfilConviteSelecionado.value = null;
     sugestoesMunicipes.value = [];
     dialogoAdicionarVisivel.value = true;
 };
+
+watch(municipeSelecionado, (novo) => {
+    perfilConviteSelecionado.value = null;
+    const ativos = (novo?.perfis ?? []).filter(p => p.ativo !== false);
+    if (ativos.length === 1) {
+        const p = ativos[0];
+        perfilConviteSelecionado.value = { ...p, label: [p.cargo, p.instituicao].filter(Boolean).join(' — ') || (p.conta_nome || 'Sem cargo/órgão') };
+    }
+}, { immediate: false });
 
 const buscarMunicipes = (event) => {
     clearTimeout(searchTimeout);
@@ -471,17 +530,33 @@ const buscarMunicipes = (event) => {
 
 const adicionarConvidado = async () => {
     if (!municipeSelecionado.value) return;
+    if (perfisAtivos.value.length === 0) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Cadastre um perfil (cargo/órgão) na ficha do contato antes de convidar.', life: 4000 });
+        return;
+    }
+    if (perfisAtivos.value.length > 1 && !perfilConviteSelecionado.value?.id) {
+        dialogoEscolhaPerfilVisivel.value = true;
+        return;
+    }
+    await enviarConviteComPerfil(perfilConviteSelecionado.value?.id ?? perfisComLabel.value[0]?.id);
+};
+
+const confirmarConviteComPerfil = async () => {
+    if (!perfilConviteSelecionado.value?.id) return;
+    await enviarConviteComPerfil(perfilConviteSelecionado.value.id);
+    dialogoEscolhaPerfilVisivel.value = false;
+};
+
+const enviarConviteComPerfil = async (perfilMunicipeId) => {
+    if (!perfilMunicipeId) return;
     try {
-        const payload = {
-            evento: eventoId,
-            municipe_id: municipeSelecionado.value.id
-        };
-        await eventosService.addConvidado(payload);
+        await eventosService.addConvidado({ evento: eventoId, perfil_id: perfilMunicipeId });
         toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Convidado adicionado!', life: 3000 });
         dialogoAdicionarVisivel.value = false;
-        carregarDados(); // Recarrega a lista
+        dialogoEscolhaPerfilVisivel.value = false;
+        carregarDados();
     } catch (error) {
-        const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Este munícipe já foi convidado para o evento.';
+        const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Este perfil já foi convidado para o evento.';
         toast.add({ severity: 'error', summary: 'Erro', detail: errorMsg, life: 4000 });
     }
 };
@@ -631,19 +706,30 @@ const validarEPrepararPayload = (dados) => {
         payload.endereco = { cep: payload.cep || '', logradouro: payload.logradouro || '', bairro: payload.bairro || '' };
     }
     delete payload.cep; delete payload.logradouro; delete payload.bairro;
+    if (evento.value?.conta && (payload.cargo || payload.orgao)) {
+        payload.perfis = [{ conta: evento.value.conta, cargo: payload.cargo || null, instituicao: payload.orgao || null, ativo: true }];
+    } else if (evento.value?.conta) {
+        payload.perfis = [{ conta: evento.value.conta, ativo: true }];
+    }
     return payload;
 };
 
 const convidarMunicipe = async (municipe) => {
+    const perfis = municipe.perfis?.filter(p => p.ativo !== false) ?? [];
+    const perfilId = perfis[0]?.id;
+    if (!perfilId) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Este contato não possui perfil (cargo/órgão). Cadastre um na ficha do munícipe.', life: 4000 });
+        return;
+    }
     try {
-        await eventosService.addConvidado({ evento: eventoId, municipe_id: municipe.id });
+        await eventosService.addConvidado({ evento: eventoId, perfil_id: perfilId });
         dialogoAdicionarVisivel.value = false;
         dialogoNovoMunicipeVisivel.value = false;
         dialogoDuplicatasVisivel.value = false;
         toast.add({ severity: 'success', summary: 'Sucesso', detail: `"${municipe.nome_completo}" adicionado como convidado!`, life: 3000 });
         carregarDados();
     } catch (error) {
-        const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Este munícipe já foi convidado para o evento.';
+        const errorMsg = error.response?.data?.non_field_errors?.[0] || 'Este perfil já foi convidado para o evento.';
         toast.add({ severity: 'error', summary: 'Erro', detail: errorMsg, life: 4000 });
     }
 };
@@ -706,7 +792,8 @@ const togglePresenca = async (convidado) => {
         await eventosService.updateConvidadoStatus(convidado.id, novoStatus);
         // Atualiza o status original no objeto para consistência
         convidado.status = novoStatus;
-        toast.add({ severity: 'success', summary: 'Status Atualizado', detail: `${convidado.municipe.nome_completo} marcado como ${novoStatus === 'presente' ? 'presente' : 'ausente'}.`, life: 2000 });
+        const nome = convidado.perfil?.municipe?.nome_completo || convidado.municipe?.nome_completo || 'Convidado';
+        toast.add({ severity: 'success', summary: 'Status Atualizado', detail: `${nome} marcado como ${novoStatus === 'presente' ? 'presente' : 'ausente'}.`, life: 2000 });
     } catch (error) {
         // Reverte a mudança visual em caso de erro na API
         convidado.presente = !convidado.presente;
@@ -716,8 +803,9 @@ const togglePresenca = async (convidado) => {
 
 // --- LÓGICA DE DELETAR CONVIDADO ---
 const confirmarDelete = (convidado) => {
+    const nome = convidado.perfil?.municipe?.nome_completo || convidado.municipe?.nome_completo || 'Convidado';
     confirm.require({
-        message: `Tem certeza que deseja remover "${convidado.municipe.nome_completo}" da lista de convidados?`,
+        message: `Tem certeza que deseja remover "${nome}" da lista de convidados?`,
         header: 'Confirmar Remoção',
         icon: 'pi pi-info-circle',
         acceptClass: 'p-button-danger',

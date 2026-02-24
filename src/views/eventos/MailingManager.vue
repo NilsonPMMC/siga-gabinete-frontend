@@ -26,10 +26,12 @@
         </main>
 
         <Dialog v-model:visible="dialogoListaVisivel" :header="modalTitle" :modal="true" :style="{ width: '500px' }">
-            <div class="field">
-                <label for="nomeLista">Nome da Lista</label>
-                <InputText id="nomeLista" v-model.trim="listaEmEdicao.nome" :class="{'p-invalid': submetido && !listaEmEdicao.nome}" />
-                <small v-if="submetido && !listaEmEdicao.nome" class="p-error">O nome é obrigatório.</small>
+            <div class="p-fluid">
+                <div class="field">
+                    <label for="nomeLista">Nome da Lista</label>
+                    <InputText id="nomeLista" v-model.trim="listaEmEdicao.nome" :class="{'p-invalid': submetido && !listaEmEdicao.nome}" />
+                    <small v-if="submetido && !listaEmEdicao.nome" class="p-error">O nome é obrigatório.</small>
+                </div>
             </div>
             <template #footer>
                 <Button label="Cancelar" icon="pi pi-times" text @click="dialogoListaVisivel = false" />

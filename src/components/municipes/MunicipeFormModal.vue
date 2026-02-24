@@ -21,7 +21,7 @@
         <div class="col-12 md:col-3 flex flex-column align-items-center justify-content-start pt-2 mt-3">
             <div class="relative">
                 <Avatar 
-                    :image="fotoPreviewUrl || '/images/avatar-placeholder.png'" 
+                    :image="fotoPreviewUrl || avatarPlaceholderUrl" 
                     size="xlarge" 
                     shape="circle" 
                     class="w-8rem h-8rem shadow-2 surface-card"
@@ -74,18 +74,8 @@
                 </div>
 
                 <div class="field col-12 md:col-4">
-                    <label for="tratamento">Tratamento</label>
+                    <label for="tratamento">Tratamento (geral)</label>
                     <InputText id="tratamento" v-model="municipe.tratamento" placeholder="Ex: Sr., Dr." />
-                </div>
-
-                <div class="field col-12 md:col-6">
-                    <label for="cargo">Cargo / Profissão</label>
-                    <InputText id="cargo" v-model="municipe.cargo" />
-                </div>
-                
-                <div class="field col-12 md:col-6">
-                    <label for="orgao">Órgão / Empresa</label>
-                    <InputText id="orgao" v-model="municipe.orgao" />
                 </div>
 
                 <div v-if="authStore.isSuperuser" class="field col-12">
@@ -95,6 +85,36 @@
             </div>
         </div>
       </div>
+
+      <div class="field col-12">
+        <div class="flex align-items-center justify-content-between mb-2">
+            <label class="font-bold">Vínculo Profissional (Cargo / Órgão)</label>
+            <Button label="Adicionar vínculo" icon="pi pi-plus" text size="small" @click="adicionarPerfil" />
+        </div>
+        <div v-for="(perfil, idx) in municipe.perfis" :key="'perfil-'+idx" class="surface-100 p-3 mb-3 border-round">
+            <div class="grid">
+                <div class="field col-12 md:col-3" v-if="contasParaPerfil.length">
+                    <label>Gabinete</label>
+                    <Dropdown v-model="perfil.conta" :options="contasParaPerfil" optionLabel="nome" optionValue="id" placeholder="Conta" class="w-full" />
+                </div>
+                <div class="field col-12 md:col-4">
+                    <label>Cargo</label>
+                    <InputText v-model="perfil.cargo" placeholder="Cargo" class="w-full" />
+                </div>
+                <div class="field col-12 md:col-4">
+                    <label>Instituição/Órgão</label>
+                    <InputText v-model="perfil.instituicao" placeholder="Órgão" class="w-full" />
+                </div>
+                <div class="field col-12 md:col-1 flex align-items-end">
+                    <Button icon="pi pi-trash" text severity="danger" @click="removerPerfil(idx)" v-tooltip="'Remover perfil'" />
+                </div>
+            </div>
+            <div class="field col-12 mt-2" v-if="!contasParaPerfil.length">
+                <small class="text-500">Salve o contato e vincule a um gabinete (acima) para adicionar perfis (cargo/órgão).</small>
+            </div>
+        </div>
+        <small v-if="!municipe.perfis?.length" class="text-500">Nenhum vínculo. Use "Adicionar vínculo" para cadastrar cargo/órgão por gabinete.</small>
+    </div>
 
       <Divider align="center" type="dashed">
           <span class="p-tag bg-gray-200 text-gray-700">Informações de Contato</span>
@@ -175,6 +195,7 @@ import { useAuthStore } from '@/stores/auth';
 import apiClient from '@/api';
 import Avatar from 'primevue/avatar';
 import FotoCapture from '@/components/common/FotoCapture.vue';
+import avatarPlaceholderUrl from '@/public/images/avatar-placeholder.png';
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -202,7 +223,8 @@ const defaultMunicipe = {
   telefones: [{ tipo: 'celular', numero: '' }],
   emails: [{ tipo: 'pessoal', email: '' }],
   endereco: { cep: '', logradouro: '', bairro: '' },
-  categoria: null
+  categoria: null,
+  perfis: []
 };
 
 const municipe = ref({ ...defaultMunicipe });
@@ -219,6 +241,11 @@ const tiposDeEmail = ref([
 const dialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
+});
+
+const contasParaPerfil = computed(() => {
+  if (contas.value?.length) return contas.value;
+  return Array.isArray(municipe.value.contas) ? municipe.value.contas : [];
 });
 
 const isEditMode = computed(() => !!props.municipeId);
@@ -245,6 +272,9 @@ async function carregarDados() {
       if (!data.emails?.length) data.emails = [{ tipo: 'pessoal', email: '' }];
       if (!data.endereco) data.endereco = {};
       if (data.data_nascimento) data.data_nascimento = new Date(data.data_nascimento + 'T00:00:00');
+      if (!Array.isArray(data.perfis)) data.perfis = [];
+      // Garantir que cada perfil tenha conta como id (para o Dropdown)
+      data.perfis = data.perfis.map(p => ({ ...p, conta: p.conta?.id ?? p.conta }));
       
       municipe.value = data;
 
@@ -338,6 +368,18 @@ const salvarMunicipe = async () => {
         if (payload.contas && payload.contas.length > 0 && typeof payload.contas[0] === 'object') {
             payload.contas = payload.contas.map(conta => conta.id);
         }
+        // Perfis: enviar apenas id (se existir), conta (id), cargo, instituicao, departamento, tratamento, ativo
+        if (Array.isArray(payload.perfis)) {
+            payload.perfis = payload.perfis.map(p => ({
+                ...(p.id && { id: p.id }),
+                conta: typeof p.conta === 'object' ? p.conta?.id : p.conta,
+                cargo: p.cargo || null,
+                instituicao: p.instituicao || null,
+                departamento: p.departamento || null,
+                tratamento: p.tratamento || null,
+                ativo: p.ativo !== false
+            })).filter(p => p.conta);
+        }
 
         let response;
         
@@ -409,6 +451,23 @@ const adicionarTelefone = () => municipe.value.telefones.push({ tipo: 'celular',
 const removerTelefone = (i) => municipe.value.telefones.splice(i, 1);
 const adicionarEmail = () => municipe.value.emails.push({ tipo: 'pessoal', email: '' });
 const removerEmail = (i) => municipe.value.emails.splice(i, 1);
+
+function adicionarPerfil() {
+  if (!municipe.value.perfis) municipe.value.perfis = [];
+  const lista = contasParaPerfil.value;
+  const primeiraConta = lista?.length ? lista[0].id : null;
+  municipe.value.perfis.push({
+    conta: primeiraConta,
+    cargo: '',
+    instituicao: '',
+    departamento: '',
+    tratamento: '',
+    ativo: true
+  });
+}
+function removerPerfil(i) {
+  municipe.value.perfis.splice(i, 1);
+}
 
 const buscarCep = async () => {
     const cep = municipe.value.endereco.cep?.replace(/\D/g, '');

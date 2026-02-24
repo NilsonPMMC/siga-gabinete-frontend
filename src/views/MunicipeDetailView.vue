@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/api';
 import { useAuthStore } from '@/stores/auth';
@@ -21,6 +21,38 @@ const showEditModal = ref(false);
 const dossieDialogVisible = ref(false);
 const filtroEscopo = ref('total');
 const secoesSelecionadas = ref(['atendimentos', 'agendas', 'eventos']);
+
+/** Histórico unificado: atendimentos (com origem) + visitas, ordenado por data decrescente */
+const historicoUnificado = computed(() => {
+  if (!municipeData.value) return [];
+  const itens = [];
+  const atendimentos = municipeData.value.atendimentos || [];
+  const visitas = municipeData.value.visitas || [];
+  atendimentos.forEach((a) => {
+    const dataStr = a.data_criacao ? new Date(a.data_criacao).toLocaleDateString('pt-BR') : '';
+    itens.push({
+      tipo: 'atendimento',
+      dataOrdenacao: a.data_criacao ? new Date(a.data_criacao).getTime() : 0,
+      data: dataStr,
+      detalhe: `Atendimento criado via ${a.origem_display || a.origem || 'Presencial'} em ${dataStr}`,
+      protocolo: a.protocolo,
+      id: a.id,
+    });
+  });
+  visitas.forEach((v) => {
+    const dataStr = v.data_checkin ? new Date(v.data_checkin).toLocaleDateString('pt-BR') : '';
+    itens.push({
+      tipo: 'visita',
+      dataOrdenacao: v.data_checkin ? new Date(v.data_checkin).getTime() : 0,
+      data: dataStr,
+      detalhe: `Visita/Presença registrada em ${dataStr}`,
+      protocolo: null,
+      id: v.id,
+    });
+  });
+  itens.sort((a, b) => b.dataOrdenacao - a.dataOrdenacao);
+  return itens;
+});
 
 // Função para buscar os dados (Extraída do onMounted para ser reutilizável)
 const carregarDadosDoMunicipe = async () => {
@@ -95,6 +127,24 @@ const confirmarDownload = async () => {
 const verAtendimento = (id) => router.push(`/atendimentos/${id}`);
 const verAgenda = (id) => router.push(`/agendas/editar/${id}`);
 const podeVerDetalhesAtendimento = () => !authStore.isRecepcao;
+
+/** Exibe um e-mail: só o valor, com tipo entre parênteses; evita mostrar objeto ou vazio como JSON */
+function formatarEmail(em) {
+  if (em == null) return '—';
+  const valor = typeof em === 'object' ? (em.email || '').trim() : String(em);
+  const tipo = typeof em === 'object' && em.tipo ? em.tipo : '';
+  const texto = valor || '—';
+  return tipo ? `${texto} (${tipo})` : texto;
+}
+
+/** Endereço em uma linha; aceita logradouro ou rua e demais campos comuns */
+const enderecoFormatado = computed(() => {
+  const e = municipeData.value?.endereco;
+  if (!e || typeof e !== 'object' || !Object.keys(e).length) return '';
+  const logradouro = e.logradouro || e.rua || '';
+  const partes = [logradouro, e.numero, e.complemento, e.bairro, e.cidade, e.uf, e.cep].filter(Boolean);
+  return partes.join(', ');
+});
 </script>
 
 <template>
@@ -148,35 +198,117 @@ const podeVerDetalhesAtendimento = () => !authStore.isRecepcao;
         </template>
         <template #content>
             <div class="grid mt-3">
-            <div class="col-12 md:col-6"><strong>Nome:</strong> {{ municipeData.dados_cadastrais?.nome || municipeData.nome_completo }}</div>
-            <div class="col-12 md:col-6"><strong>CPF:</strong> {{ municipeData.dados_cadastrais?.cpf || municipeData.cpf || 'Não informado' }}</div>
-            <div class="col-12 md:col-6"><strong>Cargo:</strong> {{ municipeData.dados_cadastrais?.cargo || municipeData.cargo || 'Não informado' }}</div>
-            <div class="col-12 md:col-6"><strong>Órgão:</strong> {{ municipeData.dados_cadastrais?.orgao || municipeData.orgao || 'Não informado' }}</div>
-            <div class="col-12 md:col-6">
-                <strong>Telefone:</strong> 
-                {{ municipeData.dados_cadastrais?.telefones?.[0]?.numero || municipeData.telefones?.[0]?.numero || 'Não informado' }}
+              <div class="col-12 md:col-6"><strong>Nome:</strong> {{ municipeData.nome_completo }}</div>
+              <div class="col-12 md:col-6"><strong>Nome de Guerra:</strong> {{ municipeData.nome_de_guerra || '—' }}</div>
+              <div class="col-12 md:col-6"><strong>CPF:</strong> {{ municipeData.cpf || 'Não informado' }}</div>
+              <div class="col-12 md:col-6"><strong>Data de Nascimento:</strong> {{ municipeData.data_nascimento ? new Date(municipeData.data_nascimento).toLocaleDateString('pt-BR') : '—' }}</div>
+              <div class="col-12 md:col-6" v-if="municipeData.cargo || municipeData.orgao">
+                <strong>Cargo (geral):</strong> {{ municipeData.cargo || '—' }}
+                <small class="block text-500">Cadastro antigo; ver vínculos por conta abaixo.</small>
+              </div>
+              <div class="col-12 md:col-6" v-if="municipeData.cargo || municipeData.orgao">
+                <strong>Órgão (geral):</strong> {{ municipeData.orgao || '—' }}
+              </div>
+              <div class="col-12">
+                <strong>Telefones:</strong>
+                <span v-if="!(municipeData.telefones && municipeData.telefones.length)"> Não informado</span>
+                <ul v-else class="m-0 mt-1 pl-3 list-none">
+                  <li v-for="(tel, i) in municipeData.telefones" :key="i">
+                    {{ typeof tel === 'object' ? (tel.numero || tel) : tel }}{{ (typeof tel === 'object' && tel.tipo) ? ` (${tel.tipo})` : '' }}
+                  </li>
+                </ul>
+              </div>
+              <div class="col-12">
+                <strong>E-mails:</strong>
+                <span v-if="!(municipeData.emails && municipeData.emails.length)"> Não informado</span>
+                <ul v-else class="m-0 mt-1 pl-3 list-none">
+                  <li v-for="(em, i) in municipeData.emails" :key="i">
+                    {{ formatarEmail(em) }}
+                  </li>
+                </ul>
+              </div>
+              <div class="col-12">
+                <strong>Endereço:</strong>
+                {{ enderecoFormatado || 'Não informado' }}
+              </div>
+              <div class="col-12" v-if="municipeData.perfis && municipeData.perfis.length">
+                <strong>Cargos / Órgãos por conta:</strong>
+                <ul class="m-0 mt-1 pl-3 list-none">
+                  <li v-for="p in municipeData.perfis" :key="p.id">
+                    <strong>{{ p.conta_nome || p.conta }}</strong>: {{ [p.cargo, p.instituicao, p.departamento].filter(Boolean).join(' — ') || '—' }}
+                  </li>
+                </ul>
+              </div>
+              <div class="col-12" v-if="municipeData.observacoes">
+                <strong>Observações:</strong>
+                <p class="m-0 mt-1 text-surface-700" style="white-space: pre-wrap;">{{ municipeData.observacoes }}</p>
+              </div>
             </div>
-            <div class="col-12 md:col-6"><strong>Email:</strong> {{ municipeData.dados_cadastrais?.email || municipeData.email || 'Não informado' }}</div>
-          </div>
         </template>
       </Card>
 
       <TabView>
-        <TabPanel header="Histórico de Atendimentos">
-            <DataTable :value="municipeData.atendimentos" paginator :rows="5" :loading="isLoading" emptyMessage="Nenhum atendimento encontrado.">
-                <Column field="data_criacao" header="Data" sortable>
+        <TabPanel header="Histórico">
+            <DataTable :value="historicoUnificado" paginator :rows="10" :loading="isLoading" emptyMessage="Nenhum registro encontrado.">
+                <Column field="data" header="Data"></Column>
+                <Column field="tipo" header="Tipo">
                     <template #body="{ data }">
-                        {{ new Date(data.data_criacao).toLocaleDateString('pt-BR') }}
+                        <Tag :value="data.tipo === 'atendimento' ? 'Atendimento' : 'Visita/Presença'" :severity="data.tipo === 'atendimento' ? 'info' : 'secondary'" />
                     </template>
                 </Column>
-                <Column field="protocolo" header="Protocolo" sortable></Column>
-                <Column field="titulo" header="Título" style="width: 50%"></Column>
-                <Column field="nome_conta" header="Gabinete"></Column>
-                <Column field="status" header="Status" sortable></Column>
+                <Column field="detalhe" header="Detalhe" style="width: 45%"></Column>
+                <Column header="Protocolo">
+                    <template #body="{ data }">
+                        <span v-if="data.tipo === 'atendimento'">{{ data.protocolo }}</span>
+                        <span v-else class="text-color-secondary">—</span>
+                    </template>
+                </Column>
                 <Column header="Ações">
-                  <template #body="slotProps">
-                    <Button v-if="podeVerDetalhesAtendimento()" icon="pi pi-eye" text rounded @click="verAtendimento(slotProps.data.id)" title="Ver Detalhes do Atendimento" />
-                  </template>
+                    <template #body="{ data }">
+                        <Button v-if="data.tipo === 'atendimento' && podeVerDetalhesAtendimento()" icon="pi pi-eye" text rounded @click="verAtendimento(data.id)" title="Ver Detalhes do Atendimento" />
+                        <span v-else>—</span>
+                    </template>
+                </Column>
+            </DataTable>
+        </TabPanel>
+
+        <TabPanel header="Visitas / Check-in">
+            <DataTable :value="municipeData.visitas || []" paginator :rows="10" :loading="isLoading" emptyMessage="Nenhuma visita ou check-in registrado.">
+                <Column header="Data">
+                    <template #body="{ data }">
+                        {{ data.data_checkin ? new Date(data.data_checkin).toLocaleString('pt-BR') : '—' }}
+                    </template>
+                </Column>
+                <Column field="conta_destino_nome" header="Gabinete"></Column>
+                <Column header="Responsável destino">
+                    <template #body="{ data }">{{ data.usuario_destino_nome || '—' }}</template>
+                </Column>
+                <Column field="registrado_por_nome" header="Registrado por"></Column>
+                <Column field="observacao" header="Observação">
+                    <template #body="{ data }">{{ data.observacao || '—' }}</template>
+                </Column>
+            </DataTable>
+        </TabPanel>
+
+        <TabPanel header="Presença na Agenda Institucional">
+            <DataTable :value="municipeData.presencas_agenda_institucional || []" paginator :rows="10" :loading="isLoading" emptyMessage="Nenhuma presença na agenda institucional.">
+                <Column field="titulo" header="Compromisso" style="width: 35%"></Column>
+                <Column header="Data do compromisso">
+                    <template #body="{ data }">
+                        {{ data.data_inicio ? new Date(data.data_inicio).toLocaleString('pt-BR') : '—' }}
+                    </template>
+                </Column>
+                <Column field="conta_nome" header="Gabinete"></Column>
+                <Column header="Presença (recepção)">
+                    <template #body="{ data }">
+                        <Tag v-if="data.chegou" value="Presente" severity="success" />
+                        <span v-else class="text-color-secondary">Convidado</span>
+                    </template>
+                </Column>
+                <Column header="Horário de chegada">
+                    <template #body="{ data }">
+                        {{ data.horario_chegada ? new Date(data.horario_chegada).toLocaleString('pt-BR') : '—' }}
+                    </template>
                 </Column>
             </DataTable>
         </TabPanel>

@@ -231,6 +231,7 @@ const gerarPdfDetalhado = async () => {
                 <strong>Data:</strong> 
                 {{ atendimento.data_criacao ? new Date(atendimento.data_criacao).toLocaleDateString('pt-BR') : 'N/A' }}
               </p>
+              <p class="m-0"><strong>Origem do Atendimento:</strong> {{ atendimento.origem_display || atendimento.origem || 'Presencial' }}</p>
               <p class="m-0"><strong>Munícipe:</strong> {{ atendimento.nome_municipe }}</p>
               <p class="m-0"><strong>Gabinete:</strong> {{ atendimento.nome_conta }}</p>
               <p class="m-0 uppercase"><strong>Responsável:</strong> {{ atendimento.responsavel_nome }}</p>
