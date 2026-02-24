@@ -72,6 +72,12 @@ const rawItems = [
                         visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
                     },
                     {
+                        label: 'Saneamento de Dados',
+                        icon: 'pi pi-fw pi-sliders-h',
+                        to: '/saneamento-dados',
+                        visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+                    },
+                    {
                         label: 'Mailing', 
                         icon: 'pi pi-fw pi-envelope', 
                         to: '/mailings',

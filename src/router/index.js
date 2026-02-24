@@ -27,6 +27,7 @@ import AgendaInstitucionalManager from '../views/agenda/AgendaInstitucionalManag
 import VisaoDiaRecepcao from '../views/agenda/VisaoDiaRecepcao.vue';
 import BiEventosView from '../views/eventos/bi/BiEventosView.vue';
 import EscalasView from '../views/escalas/EscalasView.vue';
+import SaneamentoDadosView from '../views/SaneamentoDadosView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -201,6 +202,12 @@ const router = createRouter({
       path: '/escalas',
       name: 'escalas',
       component: EscalasView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/saneamento-dados',
+      name: 'saneamento-dados',
+      component: SaneamentoDadosView,
       meta: { requiresAuth: true }
     },
   ]
