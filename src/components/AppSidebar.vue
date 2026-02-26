@@ -133,12 +133,6 @@ const rawItems = [
                 icon: 'pi pi-fw pi-calendar',
                 to: '/agenda-recepcao',
                 visible: () => authStore.isRecepcao || authStore.isSuperuser
-            },
-            { 
-                label: 'Check-in', 
-                icon: 'pi pi-fw pi-map-marker', 
-                to: '/checkins',
-                visible: () => authStore.isRecepcao || authStore.user?.is_superuser
             }
         ]
     },

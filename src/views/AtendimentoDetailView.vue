@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/api';
 import { useAuthStore } from '@/stores/auth';
@@ -17,6 +17,7 @@ import ConfirmDialog from 'primevue/confirmdialog';
 import AlterarStatusModal from '@/components/atendimentos/AlterarStatusModal.vue';
 import Chip from 'primevue/chip';
 import FileUpload from 'primevue/fileupload';
+import Toast from 'primevue/toast';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +28,7 @@ const confirm = useConfirm();
 const atendimento = ref(null);
 const isLoading = ref(true);
 const showAlterarStatusModal = ref(false);
+const recarregandoResumo = ref(false);
 
 onMounted(async () => {
   await carregarAtendimento();
@@ -48,8 +50,44 @@ const carregarAtendimento = async () => {
 };
 
 const aoStatusAlterado = async () => {
-    // Recarrega o atendimento para obter dados atualizados
     await carregarAtendimento();
+};
+
+const parseResumoIA = (text) => {
+  if (!text || typeof text !== 'string') return null;
+  const t = text.trim();
+  if (!t) return null;
+  try {
+    const parsed = JSON.parse(t);
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch {
+    const obj = {};
+    const sitMatch = t.match(/Situa[çc][ãa]o\s+Atual:\s*([\s\S]*?)(?=Provid[êe]ncias|Pend[êe]ncias|$)/i);
+    const provMatch = t.match(/Provid[êe]ncias\s+Tomadas:\s*([\s\S]*?)(?=Pend[êe]ncias|Situa[çc][ãa]o|$)/i);
+    const pendMatch = t.match(/Pend[êe]ncias:\s*([\s\S]*?)$/i);
+    if (sitMatch) obj.situacao_atual = sitMatch[1].trim();
+    if (provMatch) obj.providencias = provMatch[1].trim();
+    if (pendMatch) obj.pendencias = pendMatch[1].trim();
+    if (Object.keys(obj).length) return obj;
+  }
+  return null;
+};
+
+const resumoIAParsed = computed(() => parseResumoIA(atendimento.value?.resumo_ia_local));
+
+const recarregarResumoIA = async () => {
+    if (!atendimento.value?.id) return;
+    recarregandoResumo.value = true;
+    try {
+        const res = await apiClient.post(`/api/atendimentos/${atendimento.value.id}/recarregar-resumo-ia/`);
+        atendimento.value = res.data;
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Resumo atualizado.', life: 3000 });
+    } catch (error) {
+        const msg = error.response?.data?.detail || 'Erro ao gerar resumo. Verifique se o Ollama está rodando.';
+        toast.add({ severity: 'error', summary: 'Erro', detail: msg, life: 4000 });
+    } finally {
+        recarregandoResumo.value = false;
+    }
 };
 
 const isPrinting = ref(false); // Para o estado de loading do botão de imprimir
@@ -159,6 +197,7 @@ const gerarPdfDetalhado = async () => {
 </script>
 <template>
   <ConfirmDialog></ConfirmDialog>
+  <Toast />
   <div class="page-container">
     <div v-if="isLoading" class="loading-container">
       <ProgressSpinner />
@@ -237,6 +276,78 @@ const gerarPdfDetalhado = async () => {
               <p class="m-0 uppercase"><strong>Responsável:</strong> {{ atendimento.responsavel_nome }}</p>
 
               <hr>
+
+              <!-- Card Inteligência Artificial -->
+              <Card class="mb-4 ia-summary-card">
+                <template #title>
+                  <div class="flex align-items-center justify-content-between flex-wrap gap-2">
+                    <span class="ia-summary-title">
+                      <span class="ia-summary-icon">🧠</span>
+                      Inteligência Artificial
+                    </span>
+                    <Button
+                      v-if="atendimento.resumo_ia_local"
+                      icon="pi pi-sparkles"
+                      label="Recarregar IA"
+                      size="small"
+                      :loading="recarregandoResumo"
+                      severity="secondary"
+                      text
+                      rounded
+                      @click="recarregarResumoIA"
+                      v-tooltip.top="'Forçar nova geração do resumo'"
+                    />
+                  </div>
+                </template>
+                <template #content>
+                  <div v-if="recarregandoResumo" class="ia-loading">
+                    <ProgressSpinner style="width: 28px; height: 28px" strokeWidth="4" />
+                    <span>Gerando resumo com IA...</span>
+                  </div>
+
+                  <template v-else-if="atendimento.resumo_ia_local && resumoIAParsed">
+                    <div class="ia-sections">
+                      <div v-if="resumoIAParsed.situacao_atual" class="ia-section ia-section-situacao">
+                        <div class="ia-section-header">
+                          <span class="ia-section-icon">📌</span>
+                          <span>Situação Atual</span>
+                        </div>
+                        <p class="ia-section-text">{{ resumoIAParsed.situacao_atual }}</p>
+                      </div>
+                      <div v-if="resumoIAParsed.providencias" class="ia-section ia-section-providencias">
+                        <div class="ia-section-header">
+                          <span class="ia-section-icon">🛡️</span>
+                          <span>Providências</span>
+                        </div>
+                        <p class="ia-section-text">{{ resumoIAParsed.providencias }}</p>
+                      </div>
+                      <div v-if="resumoIAParsed.pendencias" class="ia-section ia-section-pendencias">
+                        <div class="ia-section-header">
+                          <span class="ia-section-icon">⚠️</span>
+                          <span>Pendências</span>
+                        </div>
+                        <p class="ia-section-text">{{ resumoIAParsed.pendencias }}</p>
+                      </div>
+                    </div>
+                  </template>
+
+                  <div v-else-if="atendimento.resumo_ia_local" class="ia-raw-text">
+                    <p style="white-space: pre-wrap;">{{ atendimento.resumo_ia_local }}</p>
+                  </div>
+
+                  <div v-else class="ia-empty">
+                    <p class="text-color-secondary mb-3">Nenhum resumo gerado. Clique para criar um resumo executivo com IA.</p>
+                    <Button
+                      label="Gerar Resumo com IA"
+                      icon="pi pi-sparkles"
+                      :loading="recarregandoResumo"
+                      severity="secondary"
+                      @click="recarregarResumoIA"
+                      class="ia-generate-btn"
+                    />
+                  </div>
+                </template>
+              </Card>
 
               <h4>Descrição Completa</h4>
               <p style="white-space: pre-wrap;">{{ atendimento.descricao }}</p>
@@ -420,5 +531,90 @@ hr { margin: 1.5rem 0; border: 0; border-top: 1px solid #dee2e6; }
 
 .custom-timeline :deep(.p-timeline-event-content) {
   padding-left: 1rem;
+}
+
+/* Card Inteligência Artificial - premium */
+.ia-summary-card {
+  background: linear-gradient(135deg, var(--surface-ground) 0%, var(--surface-50) 100%);
+  border: 1px solid var(--surface-border);
+  border-left: 4px solid var(--primary-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ia-summary-title {
+  font-weight: 600;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ia-summary-icon {
+  font-size: 1.25rem;
+}
+
+.ia-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  color: var(--text-color-secondary);
+}
+
+.ia-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.ia-section {
+  padding: 1rem;
+  border-radius: 8px;
+  background: var(--surface-card);
+  border-left: 3px solid var(--surface-border);
+}
+
+.ia-section-situacao { border-left-color: var(--blue-500); }
+.ia-section-providencias { border-left-color: var(--green-600); }
+.ia-section-pendencias { border-left-color: var(--orange-500); }
+
+.ia-section-header {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color);
+}
+
+.ia-section-icon {
+  font-size: 1.1rem;
+}
+
+.ia-section-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-color-secondary);
+}
+
+.ia-raw-text {
+  padding: 0.5rem 0;
+}
+
+.ia-raw-text p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.ia-empty {
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.ia-generate-btn {
+  font-weight: 500;
 }
 </style>

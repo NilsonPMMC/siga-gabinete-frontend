@@ -31,6 +31,7 @@ const statusOptions = ref([
 
 // --- NOVO ESTADO PARA CHECK-IN / REGISTRO DE VISITAS ---
 const visitasDoDia = ref([]);
+const summaryData = ref(null);
 const dialogoCheckInVisivel = ref(false);
 const novoCheckIn = ref({});
 const isLoadingCheckIn = ref(false);
@@ -59,10 +60,12 @@ onMounted(async () => {
     if (!authStore.isAuthenticated) return;
     isLoading.value = true;
     try {
-        const [atendimentosRes, contasRes] = await Promise.all([
+        const [atendimentosRes, contasRes, summaryRes] = await Promise.all([
             apiClient.get('/api/atendimentos/'),
-            apiClient.get('/api/contas/')
+            apiClient.get('/api/contas/'),
+            apiClient.get('/api/dashboard/summary/')
         ]);
+        summaryData.value = summaryRes.data;
         // Guarda a lista completa como nossa "base de dados"
         todosAtendimentos.value = atendimentosRes.data;
         // A tela começa mostrando APENAS os atendimentos abertos
@@ -273,16 +276,36 @@ const tituloDialogoCheckIn = computed(() => {
     <header class="page-header">
       <h1>Dashboard</h1>
       <div class="flex gap-2">
-        <Button v-if="authStore.isRecepcao || authStore.user?.is_superuser" 
-            label="Registrar Visita (Check-in)" 
-            icon="pi pi-user-plus" 
-            @click="abrirDialogoParaCriacaoCheckIn"  
-            class="p-button-secondary" />
         <Button label="Novo Atendimento" icon="pi pi-plus" @click="irParaNovoAtendimento" class="p-button-success" />
       </div>
     </header>
     
-    <DashboardSummary class="mb-4" />
+    <DashboardSummary class="mb-4" :summaryDataProp="summaryData" :fetchInParent="true" />
+
+    <Card v-if="summaryData?.visitas_hoje?.length > 0" class="mb-4">
+      <template #title>
+        <span>Agenda / Recepção Hoje</span>
+      </template>
+      <template #content>
+        <DataTable :value="summaryData.visitas_hoje" size="small" responsiveLayout="scroll" stripedRows>
+          <Column field="data_checkin" header="Horário" style="width: 6rem;">
+            <template #body="{ data }">
+              {{ data.data_checkin ? new Date(data.data_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-' }}
+            </template>
+          </Column>
+          <Column field="municipe_nome" header="Visitante"></Column>
+          <Column field="conta_destino_nome" header="Destino"></Column>
+          <Column header="Para quem" style="min-width: 10rem;">
+            <template #body="{ data }">
+              <Tag v-if="!data.usuario_destino_nome" severity="secondary" value="Sem Destino Definido" class="text-xs" />
+              <span v-else class="text-sm">Para: {{ data.usuario_destino_nome }}</span>
+            </template>
+          </Column>
+          <Column field="observacao" header="Observação"></Column>
+          <template #empty>Nenhum registro de visita/compromisso para hoje.</template>
+        </DataTable>
+      </template>
+    </Card>
 
     <Card class="mb-4" v-if="authStore.isRecepcao || authStore.user?.is_superuser">
         <template #title>Visitantes de Hoje</template>

@@ -2,11 +2,13 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import apiClient from '@/api';
+import contatosService from '@/services/contatos';
 import { formatarPerfis } from '@/services/comum';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
 import { useConfirm } from "primevue/useconfirm";
 import MultiSelect from 'primevue/multiselect';
+import InputSwitch from 'primevue/inputswitch';
 import { format, addDays, subDays, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -30,6 +32,8 @@ const filtroLetra = ref('');
 const filtroCategorias = ref([]);
 const alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 const filtroOrdem = ref('nome');
+const modoIA = ref(false);
+const resultadosBuscaIA = ref([]);
 const ordemOptions = ref([
     { label: 'Ordenar por Nome', value: 'nome' },
     { label: 'Ordenar por Órgão', value: 'orgao' }
@@ -89,9 +93,32 @@ const carregarDadosIniciais = async () => {
 };
 
 // --- FUNÇÕES DE FILTRO E BUSCA (MANTIDAS) ---
+const isLoadingIA = ref(false);
+
 const aplicarFiltros = async () => {
+  if (modoIA.value) {
+    if (!filtroTexto.value.trim()) {
+      toast.add({ severity: 'warn', summary: 'Busca IA', detail: 'Digite um termo para buscar.', life: 3000 });
+      return;
+    }
+    isLoadingIA.value = true;
+    resultadosBuscaIA.value = [];
+    try {
+      const dados = await contatosService.buscarComInteligencia(filtroTexto.value.trim());
+      resultadosBuscaIA.value = dados || [];
+      municipesNaTela.value = [];
+    } catch (error) {
+      toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Não foi possível consultar a IA.', life: 4000 });
+      resultadosBuscaIA.value = [];
+    } finally {
+      isLoadingIA.value = false;
+    }
+    return;
+  }
+
   isLoading.value = true;
-  
+  resultadosBuscaIA.value = [];
+
   const params = new URLSearchParams();
   if (filtroTexto.value) params.append('q', filtroTexto.value);
   if (filtroLetra.value) params.append('letra', filtroLetra.value);
@@ -116,6 +143,8 @@ const limparFiltros = async () => {
   filtroTexto.value = '';
   filtroLetra.value = '';
   filtroCategorias.value = [];
+  modoIA.value = false;
+  resultadosBuscaIA.value = [];
   await carregarDadosIniciais();
 };
 
@@ -420,7 +449,22 @@ const executarAtualizacaoCategoriaLote = async () => {
         <div class="grid formgrid p-fluid gap-2">
           <div class="field col-6 p-0">
             <label>Buscar por Nome, CPF, Email...</label>
-            <InputText v-model="filtroTexto" @keyup.enter="aplicarFiltros" placeholder="Digite para buscar..." />
+            <div class="flex align-items-center gap-3 flex-wrap">
+              <InputText
+                v-model="filtroTexto"
+                @keyup.enter="aplicarFiltros"
+                placeholder="Digite para buscar..."
+                :class="{ 'busca-ia-ativa': modoIA }"
+                class="flex-1 min-w-0"
+              />
+              <div class="flex align-items-center gap-2">
+                <InputSwitch id="modoIA" v-model="modoIA" />
+                <label for="modoIA" class="cursor-pointer flex align-items-center gap-1">
+                  <i class="pi pi-sparkles"></i>
+                  <span>Busca Inteligente</span>
+                </label>
+              </div>
+            </div>
           </div>
           <div class="field col-3 p-0">
             <label>Filtrar Categoria(s)</label>
@@ -432,7 +476,7 @@ const executarAtualizacaoCategoriaLote = async () => {
           </div>
         </div>
         <div class="grid formgrid gap-2">
-            <Button label="Buscar" icon="pi pi-search" @click="aplicarFiltros" :loading="isLoading" />
+            <Button label="Buscar" icon="pi pi-search" @click="aplicarFiltros" :loading="modoIA ? isLoadingIA : isLoading" />
             <Button label="Limpar" icon="pi pi-filter-slash" @click="limparFiltros" class="p-button-secondary" />
             <Button label="Exportar Excel" icon="pi pi-file-excel" class="p-button-success" @click="exportarExcel" :loading="isExporting" />
             <Button label="Exportar PDF" icon="pi pi-file-pdf" class="p-button-danger" @click="exportarPDF" :loading="isExporting" />
@@ -450,9 +494,16 @@ const executarAtualizacaoCategoriaLote = async () => {
     </div>
 
     <main>
-      <div class="my-3 text-sm text-color-secondary">Exibindo {{ municipesNaTela.length }} contato(s).</div>
+      <div v-if="modoIA && isLoadingIA" class="flex align-items-center gap-3 py-4 text-indigo-600">
+        <ProgressSpinner style="width: 24px; height: 24px" strokeWidth="6" />
+        <span>Consultando a IA...</span>
+      </div>
 
-      <DataTable 
+      <div v-else-if="!modoIA" class="my-3 text-sm text-color-secondary">Exibindo {{ municipesNaTela.length }} contato(s).</div>
+      <div v-else class="my-3 text-sm text-color-secondary">Exibindo {{ resultadosBuscaIA.length }} resultado(s) da busca inteligente.</div>
+
+      <DataTable
+        v-if="!modoIA"
         :value="municipesNaTela"
         v-model:selection="municipesSelecionados" dataKey="id"
         :loading="isLoading" 
@@ -502,6 +553,55 @@ const executarAtualizacaoCategoriaLote = async () => {
           </template>
         </Column>
         <template #empty>Nenhum munícipe encontrado.</template>
+      </DataTable>
+
+      <DataTable
+        v-else
+        :value="resultadosBuscaIA"
+        :loading="false"
+        responsiveLayout="scroll"
+        stripedRows
+        size="small"
+      >
+        <Column header="Relevância" style="width: 6rem">
+          <template #body="slotProps">
+            <Tag
+              :value="`${(slotProps.data.score_match ?? 0).toFixed(1)}%`"
+              :severity="(slotProps.data.score_match ?? 0) >= 90 ? 'success' : (slotProps.data.score_match ?? 0) >= 70 ? 'warning' : 'info'"
+            />
+          </template>
+        </Column>
+        <Column header="Nome">
+          <template #body="slotProps">
+            <div>
+              <a href="#" @click.prevent="irParaVisao360(slotProps.data.id)">{{ slotProps.data.nome }}</a>
+              <small v-if="slotProps.data.perfil_ia_texto" class="block text-color-secondary text-sm mt-1" :title="slotProps.data.perfil_ia_texto">{{ (slotProps.data.perfil_ia_texto || '').substring(0, 80) }}{{ (slotProps.data.perfil_ia_texto || '').length > 80 ? '...' : '' }}</small>
+            </div>
+          </template>
+        </Column>
+        <Column header="Cargo">
+          <template #body="slotProps">{{ slotProps.data.cargo || '—' }}</template>
+        </Column>
+        <Column header="Telefone">
+          <template #body="slotProps">
+            <div class="flex align-items-center gap-2" v-if="slotProps.data.telefone">
+              <span>{{ slotProps.data.telefone }}</span>
+              <Button icon="pi pi-copy" text rounded size="small" @click="copiarTexto(slotProps.data.telefone)" />
+            </div>
+            <span v-else>—</span>
+          </template>
+        </Column>
+        <Column header="Bairro">
+          <template #body="slotProps">{{ slotProps.data.bairro || '—' }}</template>
+        </Column>
+        <Column header="Ações" style="width: 10rem">
+          <template #body="slotProps">
+            <Button icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico" />
+            <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicao({ id: slotProps.data.id, nome_completo: slotProps.data.nome, pode_editar: true })" title="Editar" />
+            <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmarExclusaoReal({ id: slotProps.data.id, nome_completo: slotProps.data.nome })" title="Excluir" />
+          </template>
+        </Column>
+        <template #empty>Nenhum resultado na busca inteligente. Digite um termo e clique em Buscar.</template>
       </DataTable>
     </main>
 
@@ -553,4 +653,9 @@ const executarAtualizacaoCategoriaLote = async () => {
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 a { text-decoration: none; color: var(--p-primary-color); font-weight: 500; }
 a:hover { text-decoration: underline; }
+
+.busca-ia-ativa {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
 </style>

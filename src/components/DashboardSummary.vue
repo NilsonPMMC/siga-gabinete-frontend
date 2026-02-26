@@ -1,20 +1,33 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import apiClient from '@/api';
 import Card from 'primevue/card';
 import ProgressSpinner from 'primevue/progressspinner';
-import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 
+const props = defineProps({
+  summaryDataProp: { type: Object, default: null },
+  fetchInParent: { type: Boolean, default: false }
+});
+
 const authStore = useAuthStore();
-const summaryData = ref(null);
+const summaryDataLocal = ref(null);
 const isLoading = ref(true);
+
+const summaryData = computed(() => props.summaryDataProp ?? summaryDataLocal.value);
+const showLoading = computed(() => {
+  if (props.fetchInParent) return !props.summaryDataProp;
+  return isLoading.value;
+});
 
 onMounted(async () => {
   if (!authStore.isAuthenticated) return;
+  if (props.fetchInParent) {
+    return;
+  }
   try {
     const response = await apiClient.get('/api/dashboard/summary/');
-    summaryData.value = response.data;
+    summaryDataLocal.value = response.data;
   } catch (error) {
     console.error("Erro ao buscar resumo do dashboard:", error);
   } finally {
@@ -24,7 +37,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="isLoading" class="text-center p-4">
+  <div v-if="showLoading" class="text-center p-4">
     <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="8" />
   </div>
 

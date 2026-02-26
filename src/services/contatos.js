@@ -13,5 +13,9 @@ export default {
   },
   deleteCategoria(id) {
     return apiClient.delete(`/api/contatos/categorias/${id}/`);
+  },
+  async buscarComInteligencia(query) {
+    const response = await apiClient.get('/api/municipes/busca-ia/', { params: { q: query } });
+    return response.data;
   }
 };
