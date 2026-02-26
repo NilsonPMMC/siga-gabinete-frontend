@@ -13,25 +13,39 @@
     <Card class="mb-3">
       <template #title>Filtros de Qualidade</template>
       <template #content>
-        <div class="flex flex-wrap gap-3 align-items-center">
-          <div class="flex align-items-center gap-2">
-            <Checkbox inputId="filtroTel" v-model="filtros" value="telefone_invalido" />
-            <label for="filtroTel">Telefones Inválidos (00000000, 11111111, 99999999)</label>
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-wrap gap-2 align-items-center">
+            <span class="flex align-items-center p-input-icon-left flex-1" style="min-width: 240px">
+              <InputText
+                v-model="buscaGeral"
+                placeholder="Buscar por nome, CPF, cargo, órgão..."
+                class="w-full"
+                @keyup.enter="carregarItens"
+              />
+            </span>
+            <Button label="Buscar" icon="pi pi-search" :loading="loading" @click="carregarItens" />
           </div>
-          <div class="flex align-items-center gap-2">
-            <Checkbox inputId="filtroEmail" v-model="filtros" value="email_invalido" />
-            <label for="filtroEmail">E-mails sem @</label>
+          <Divider layout="vertical" />
+          <div class="flex flex-wrap gap-3 align-items-center">
+            <div class="flex align-items-center gap-2">
+              <Checkbox inputId="filtroTel" v-model="filtros" value="telefone_invalido" />
+              <label for="filtroTel">Telefones Inválidos <small>(00000000, 11111111, 99999999)</small></label>
+            </div>
+            <div class="flex align-items-center gap-2">
+              <Checkbox inputId="filtroEmail" v-model="filtros" value="email_invalido" />
+              <label for="filtroEmail">E-mails sem @</label>
+            </div>
+            <div class="flex align-items-center gap-2">
+              <Checkbox inputId="filtroCpf" v-model="filtros" value="cpf_ausente" />
+              <label for="filtroCpf">CPF ausente</label>
+            </div>
+            <Button
+              label="Aplicar Filtros"
+              icon="pi pi-filter"
+              :loading="loading"
+              @click="carregarItens"
+            />
           </div>
-          <div class="flex align-items-center gap-2">
-            <Checkbox inputId="filtroCpf" v-model="filtros" value="cpf_ausente" />
-            <label for="filtroCpf">CPF ausente</label>
-          </div>
-          <Button
-            label="Aplicar Filtros"
-            icon="pi pi-filter"
-            :loading="loading"
-            @click="carregarItens"
-          />
         </div>
       </template>
     </Card>
@@ -55,6 +69,7 @@
           >
             <template #empty> Nenhum problema encontrado com os filtros atuais. </template>
             <Column field="nome_completo" header="Nome" sortable></Column>
+            <Column field="cargo_orgao" header="Cargo(s) / Órgão(s)"></Column>
             <Column field="problemaLabel" header="Problema"></Column>
             <Column field="valor_atual" header="Valor Atual"></Column>
             <Column header="Correção">
@@ -97,10 +112,12 @@ import Column from 'primevue/column';
 import ProgressSpinner from 'primevue/progressspinner';
 import InputText from 'primevue/inputtext';
 import Toast from 'primevue/toast';
+import Divider from 'primevue/divider';
 
 const toast = useToast();
 
 const filtros = ref(['telefone_invalido', 'email_invalido', 'cpf_ausente']);
+const buscaGeral = ref('');
 const itens = ref([]);
 const loading = ref(false);
 
@@ -115,6 +132,8 @@ const carregarItens = async () => {
   try {
     const params = new URLSearchParams();
     (filtros.value || []).forEach((p) => params.append('problema', p));
+    const q = (buscaGeral.value || '').trim();
+    if (q) params.append('q', q);
     const res = await apiClient.get('/api/municipes/saneamento-dados/', { params });
     itens.value = (res.data || []).map((row, idx) => ({
       ...row,
