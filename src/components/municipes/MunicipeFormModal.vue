@@ -257,10 +257,16 @@ async function carregarDados() {
   try {
     const [categoriasRes, contasRes] = await Promise.all([
         apiClient.get('/api/contatos/categorias/'),
-        authStore.isSuperuser ? apiClient.get('/api/contas/') : Promise.resolve({ data: [] })
+        apiClient.get('/api/contas/')
     ]);
     categoriasContato.value = categoriasRes.data;
-    contas.value = contasRes.data;
+    const todasContas = contasRes.data || [];
+    if (authStore.isSuperuser) {
+        contas.value = todasContas;
+    } else {
+        const idsUsuario = authStore.userContas || [];
+        contas.value = idsUsuario.length ? todasContas.filter(c => idsUsuario.includes(c.id)) : [];
+    }
 
     if (isEditMode.value) {
       console.log(`Buscando dados do munícipe ID: ${props.municipeId}`);

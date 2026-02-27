@@ -32,6 +32,11 @@ const statusOptions = ref([
 // --- NOVO ESTADO PARA CHECK-IN / REGISTRO DE VISITAS ---
 const visitasDoDia = ref([]);
 const summaryData = ref(null);
+
+// --- AGENDA / RECEPÇÃO HOJE: navegação por data ---
+const dataAgendaSelecionada = ref(null);
+const visitasAgenda = ref([]);
+const isLoadingAgenda = ref(false);
 const dialogoCheckInVisivel = ref(false);
 const novoCheckIn = ref({});
 const isLoadingCheckIn = ref(false);
@@ -55,6 +60,45 @@ const carregarVisitasDoDia = async () => {
     }
 };
 
+const formatarDataAgenda = (dataStr) => {
+    if (!dataStr) return '';
+    const d = new Date(dataStr + 'T12:00:00');
+    return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const carregarVisitasAgenda = async () => {
+    if (!dataAgendaSelecionada.value) return;
+    isLoadingAgenda.value = true;
+    try {
+        const res = await apiClient.get('/api/dashboard/visitas/', { params: { data: dataAgendaSelecionada.value } });
+        visitasAgenda.value = res.data;
+    } catch (error) {
+        console.error("Erro ao carregar visitas da agenda:", error);
+        visitasAgenda.value = [];
+    } finally {
+        isLoadingAgenda.value = false;
+    }
+};
+
+const irParaDataAnterior = () => {
+    const d = new Date(dataAgendaSelecionada.value + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    dataAgendaSelecionada.value = d.toISOString().slice(0, 10);
+    carregarVisitasAgenda();
+};
+
+const irParaProximaData = () => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (dataAgendaSelecionada.value >= hoje) return;
+    const d = new Date(dataAgendaSelecionada.value + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    dataAgendaSelecionada.value = d.toISOString().slice(0, 10);
+    carregarVisitasAgenda();
+};
+
+const hojeStr = () => new Date().toISOString().slice(0, 10);
+const podeAvancarData = computed(() => dataAgendaSelecionada.value < hojeStr());
+
 // --- CARREGAMENTO INICIAL ---
 onMounted(async () => {
     if (!authStore.isAuthenticated) return;
@@ -66,6 +110,10 @@ onMounted(async () => {
             apiClient.get('/api/dashboard/summary/')
         ]);
         summaryData.value = summaryRes.data;
+        if (summaryRes.data?.visitas_hoje !== undefined) {
+            dataAgendaSelecionada.value = new Date().toISOString().slice(0, 10);
+            visitasAgenda.value = summaryRes.data.visitas_hoje || [];
+        }
         // Guarda a lista completa como nossa "base de dados"
         todosAtendimentos.value = atendimentosRes.data;
         // A tela começa mostrando APENAS os atendimentos abertos
@@ -282,12 +330,19 @@ const tituloDialogoCheckIn = computed(() => {
     
     <DashboardSummary class="mb-4" :summaryDataProp="summaryData" :fetchInParent="true" />
 
-    <Card v-if="summaryData?.visitas_hoje?.length > 0" class="mb-4">
+    <Card v-if="summaryData?.visitas_hoje !== undefined" class="mb-4">
       <template #title>
-        <span>Agenda / Recepção Hoje</span>
+        <div class="flex align-items-center justify-content-between flex-wrap gap-2">
+          <span>📅 Agenda / Recepção Hoje ({{ visitasAgenda.length }})</span>
+          <div class="flex align-items-center gap-2">
+            <Button icon="pi pi-chevron-left" text rounded :disabled="!dataAgendaSelecionada" @click="irParaDataAnterior" title="Dia anterior" />
+            <span class="text-sm font-medium">{{ formatarDataAgenda(dataAgendaSelecionada) }}</span>
+            <Button icon="pi pi-chevron-right" text rounded :disabled="!podeAvancarData" @click="irParaProximaData" title="Próximo dia" />
+          </div>
+        </div>
       </template>
       <template #content>
-        <DataTable :value="summaryData.visitas_hoje" size="small" responsiveLayout="scroll" stripedRows>
+        <DataTable :value="visitasAgenda" :loading="isLoadingAgenda" size="small" responsiveLayout="scroll" stripedRows>
           <Column field="data_checkin" header="Horário" style="width: 6rem;">
             <template #body="{ data }">
               {{ data.data_checkin ? new Date(data.data_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-' }}
@@ -302,7 +357,7 @@ const tituloDialogoCheckIn = computed(() => {
             </template>
           </Column>
           <Column field="observacao" header="Observação"></Column>
-          <template #empty>Nenhum registro de visita/compromisso para hoje.</template>
+          <template #empty>Nenhum registro de visita/compromisso para {{ dataAgendaSelecionada ? formatarDataAgenda(dataAgendaSelecionada) : 'esta data' }}.</template>
         </DataTable>
       </template>
     </Card>
