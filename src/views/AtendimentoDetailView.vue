@@ -15,6 +15,8 @@ import ProgressSpinner from 'primevue/progressspinner';
 import Textarea from 'primevue/textarea';
 import ConfirmDialog from 'primevue/confirmdialog';
 import AlterarStatusModal from '@/components/atendimentos/AlterarStatusModal.vue';
+import RedirecionarAtendimentoModal from '@/components/atendimentos/RedirecionarAtendimentoModal.vue';
+import CompartilharAtendimentoModal from '@/components/atendimentos/CompartilharAtendimentoModal.vue';
 import Chip from 'primevue/chip';
 import FileUpload from 'primevue/fileupload';
 import Toast from 'primevue/toast';
@@ -28,6 +30,8 @@ const confirm = useConfirm();
 const atendimento = ref(null);
 const isLoading = ref(true);
 const showAlterarStatusModal = ref(false);
+const showRedirecionarModal = ref(false);
+const showCompartilharModal = ref(false);
 const recarregandoResumo = ref(false);
 
 onMounted(async () => {
@@ -274,6 +278,32 @@ const gerarPdfDetalhado = async () => {
               <p class="m-0"><strong>Munícipe:</strong> {{ atendimento.nome_municipe }}</p>
               <p class="m-0"><strong>Gabinete:</strong> {{ atendimento.nome_conta }}</p>
               <p class="m-0 uppercase"><strong>Responsável:</strong> {{ atendimento.responsavel_nome }}</p>
+              <p v-if="atendimento.responsaveis_compartilhados && atendimento.responsaveis_compartilhados.length > 0" class="m-0 mt-1">
+                <strong>Co-responsáveis:</strong> 
+                <span v-for="(u, i) in atendimento.responsaveis_compartilhados" :key="u.id">
+                  {{ u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username }}<span v-if="i < atendimento.responsaveis_compartilhados.length - 1">, </span>
+                </span>
+              </p>
+              <div class="flex gap-2 mt-2">
+                <Button 
+                  label="Redirecionar" 
+                  icon="pi pi-arrow-right" 
+                  size="small" 
+                  severity="secondary" 
+                  outlined
+                  @click="showRedirecionarModal = true"
+                  v-tooltip.top="'Passar responsabilidade para outro membro da equipe'"
+                />
+                <Button 
+                  label="Compartilhar" 
+                  icon="pi pi-users" 
+                  size="small" 
+                  severity="secondary" 
+                  outlined
+                  @click="showCompartilharModal = true"
+                  v-tooltip.top="'Adicionar co-responsável à gestão do atendimento'"
+                />
+              </div>
 
               <hr>
 
@@ -496,6 +526,21 @@ const gerarPdfDetalhado = async () => {
       :atendimento-id="atendimento?.id"
       :status-atual="atendimento?.status"
       @status-alterado="aoStatusAlterado"
+    />
+    <RedirecionarAtendimentoModal
+      v-model:visible="showRedirecionarModal"
+      :atendimento-id="atendimento?.id"
+      :conta-id="atendimento?.conta"
+      @redirecionado="aoStatusAlterado"
+    />
+    <CompartilharAtendimentoModal
+      v-model:visible="showCompartilharModal"
+      :atendimento-id="atendimento?.id"
+      :conta-id="atendimento?.conta"
+      :usuario-logado-id="authStore.user?.user_id"
+      :responsavel-id="atendimento?.responsavel_obj?.id"
+      :responsaveis-compartilhados-ids="(atendimento?.responsaveis_compartilhados || []).map(u => u.id)"
+      @compartilhado="aoStatusAlterado"
     />
   </div>
 </template>
