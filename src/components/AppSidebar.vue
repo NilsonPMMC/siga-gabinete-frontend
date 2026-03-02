@@ -168,6 +168,12 @@ const rawItems = [
                 icon: 'pi pi-fw pi-calendar',
                 to: '/relatorios/agendas',
                 visible: () => authStore.user?.is_superuser || authStore.isSecretaria
+            },
+            { 
+                label: 'Relatório Check-in / Visitas', 
+                icon: 'pi pi-fw pi-user-plus',
+                to: '/checkins',
+                visible: () => authStore.user?.is_superuser
             }
         ]
     }

@@ -159,11 +159,13 @@ const gerarRelatorioCheckinsPDF = async () => {
             <div class="field col-fixed flex gap-2">
                 <Button label="Buscar" icon="pi pi-search" @click="carregarVisitas" :loading="isLoading" />
                 <Button 
+                    v-if="authStore.user?.is_superuser"
                     label="Exportar PDF" 
                     icon="pi pi-file-pdf" 
-                    class="p-button-danger" 
+                    class="p-button-secondary" 
                     @click="gerarRelatorioCheckinsPDF" 
-                    :loading="isGeneratingReport" 
+                    :loading="isGeneratingReport"
+                    v-tooltip.top="'Gerar relatório de check-ins/visitas em PDF por período'"
                 />
             </div>
         </div>
