@@ -663,7 +663,7 @@ const buscarCep = async () => {
 
 const iniciarNovoMunicipe = () => ({
     nome_completo: '', nome_de_guerra: '', cargo: '', orgao: '',
-    categoria: null, cpf: '', data_nascimento: null,
+    categoria: null, cpf: '', data_nascimento: null, // categoria vai para o perfil na conta do evento
     telefones: [{ tipo: 'principal', numero: '' }],
     emails: [{ tipo: 'principal', email: '' }],
     cep: '', logradouro: '', bairro: '',
@@ -706,10 +706,9 @@ const validarEPrepararPayload = (dados) => {
         payload.endereco = { cep: payload.cep || '', logradouro: payload.logradouro || '', bairro: payload.bairro || '' };
     }
     delete payload.cep; delete payload.logradouro; delete payload.bairro;
-    if (evento.value?.conta && (payload.cargo || payload.orgao)) {
-        payload.perfis = [{ conta: evento.value.conta, cargo: payload.cargo || null, instituicao: payload.orgao || null, ativo: true }];
-    } else if (evento.value?.conta) {
-        payload.perfis = [{ conta: evento.value.conta, ativo: true }];
+    const contaId = typeof evento.value?.conta === 'object' ? evento.value?.conta?.id : evento.value?.conta;
+    if (contaId) {
+        payload.perfis = [{ conta: contaId, categoria: payload.categoria, cargo: payload.cargo || null, instituicao: payload.orgao || null, ativo: true }];
     }
     return payload;
 };

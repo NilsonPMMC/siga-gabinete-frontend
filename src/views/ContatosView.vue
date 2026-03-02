@@ -374,25 +374,38 @@ const executarAtualizacaoCategoriaLote = async () => {
         return;
     }
 
+    const perfilIds = municipesSelecionados.value.flatMap(m => (m.perfis || []).map(p => p.id).filter(Boolean));
+    if (!perfilIds.length) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Os contatos selecionados não possuem perfis (vínculos) para atualizar.', life: 3000 });
+        return;
+    }
+
     isUpdatingCategoria.value = true;
     const idsParaAtualizar = municipesSelecionados.value.map(m => m.id);
 
     try {
         const response = await apiClient.post('/api/municipes/atualizar-categoria-lote/', {
-            municipe_ids: idsParaAtualizar,
+            perfil_ids: perfilIds,
             nova_categoria_id: novaCategoriaId.value
         });
 
         toast.add({ severity: 'success', summary: 'Sucesso', detail: response.data.message, life: 4000 });
         
-        // Atualiza visualmente
+        // Atualiza visualmente (categorias_nomes)
         const categoriaSelecionada = categoriasContato.value.find(c => c.id === novaCategoriaId.value);
-        if (categoriaSelecionada) {
-             municipesNaTela.value.forEach(municipe => {
-                 if (idsParaAtualizar.includes(municipe.id)) municipe.categoria = categoriaSelecionada;
+        const nomeCategoria = categoriaSelecionada?.nome;
+        if (nomeCategoria) {
+             municipesNaTela.value.forEach(m => {
+                 if (idsParaAtualizar.includes(m.id) && m.perfis) {
+                     m.perfis.forEach(p => { if (perfilIds.includes(p.id)) p.categoria_nome = nomeCategoria; });
+                     m.categorias_nomes = [nomeCategoria];
+                 }
              });
-             todosMunicipes.value.forEach(municipe => {
-                 if (idsParaAtualizar.includes(municipe.id)) municipe.categoria = categoriaSelecionada;
+             todosMunicipes.value.forEach(m => {
+                 if (idsParaAtualizar.includes(m.id) && m.perfis) {
+                     m.perfis.forEach(p => { if (perfilIds.includes(p.id)) p.categoria_nome = nomeCategoria; });
+                     m.categorias_nomes = [nomeCategoria];
+                 }
              });
         }
 
@@ -516,7 +529,9 @@ const executarAtualizacaoCategoriaLote = async () => {
             <a href="#" @click.prevent="irParaVisao360(slotProps.data.id)">{{ slotProps.data.nome_completo }}</a>
           </template>
         </Column>
-        <Column field="categoria_nome" header="Categoria" sortable></Column>
+        <Column field="categorias_nomes" header="Categoria" sortable>
+            <template #body="{ data }">{{ Array.isArray(data.categorias_nomes) ? data.categorias_nomes.join(', ') : (data.categoria_nome || '') }}</template>
+        </Column>
         <Column header="Cargo(s) / Órgão(s)">
           <template #body="slotProps">
             {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}

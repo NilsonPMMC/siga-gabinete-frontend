@@ -190,8 +190,8 @@ const enderecoFormatado = computed(() => {
                 <div>
                     <span class="text-xl font-bold">Dados do Munícipe</span>
                     <div class="mt-2">
-                        <Tag v-if="municipeData.categoria?.nome" :value="municipeData.categoria.nome" severity="info" />
-                        <Tag v-if="municipeData.categoria?.nome === 'AUTORIDADE'" value="VIP" severity="warning" class="ml-2" />
+                        <Tag v-for="cat in (municipeData.categorias_nomes || [])" :key="cat" :value="cat" severity="info" class="mr-1" />
+                        <Tag v-if="(municipeData.categorias_nomes || []).includes('AUTORIDADE')" value="VIP" severity="warning" class="ml-2" />
                     </div>
                 </div>
             </div>

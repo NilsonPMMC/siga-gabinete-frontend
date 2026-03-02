@@ -58,10 +58,7 @@
                     <InputText id="apelido" v-model="municipe.nome_de_guerra" />
                 </div>
                 
-                <div class="field col-12 md:col-6">
-                    <label for="categoria" class="font-bold">Categoria *</label>
-                    <Dropdown id="categoria" v-model="municipe.categoria" :options="categoriasContato" optionLabel="nome" optionValue="id" placeholder="Selecione..." />
-                </div>
+                <!-- Categoria por perfil abaixo -->
 
                 <div class="field col-6 md:col-4">
                     <label for="cpf">CPF</label>
@@ -93,17 +90,21 @@
         </div>
         <div v-for="(perfil, idx) in municipe.perfis" :key="'perfil-'+idx" class="surface-100 p-3 mb-3 border-round">
             <div class="grid">
-                <div class="field col-12 md:col-3" v-if="contasParaPerfil.length">
+                <div class="field col-12 md:col-2" v-if="contasParaPerfil.length">
                     <label>Gabinete</label>
                     <Dropdown v-model="perfil.conta" :options="contasParaPerfil" optionLabel="nome" optionValue="id" placeholder="Conta" class="w-full" />
                 </div>
-                <div class="field col-12 md:col-4">
+                <div class="field col-12 md:col-3">
                     <label>Cargo</label>
                     <InputText v-model="perfil.cargo" placeholder="Cargo" class="w-full" />
                 </div>
-                <div class="field col-12 md:col-4">
+                <div class="field col-12 md:col-3">
                     <label>Instituição/Órgão</label>
                     <InputText v-model="perfil.instituicao" placeholder="Órgão" class="w-full" />
+                </div>
+                <div class="field col-12 md:col-3" v-if="categoriasContato.length">
+                    <label>Categoria *</label>
+                    <Dropdown v-model="perfil.categoria" :options="categoriasContato" optionLabel="nome" optionValue="id" placeholder="Selecione..." class="w-full" />
                 </div>
                 <div class="field col-12 md:col-1 flex align-items-end">
                     <Button icon="pi pi-trash" text severity="danger" @click="removerPerfil(idx)" v-tooltip="'Remover perfil'" />
@@ -223,7 +224,6 @@ const defaultMunicipe = {
   telefones: [{ tipo: 'celular', numero: '' }],
   emails: [{ tipo: 'pessoal', email: '' }],
   endereco: { cep: '', logradouro: '', bairro: '' },
-  categoria: null,
   perfis: []
 };
 
@@ -279,8 +279,8 @@ async function carregarDados() {
       if (!data.endereco) data.endereco = {};
       if (data.data_nascimento) data.data_nascimento = new Date(data.data_nascimento + 'T00:00:00');
       if (!Array.isArray(data.perfis)) data.perfis = [];
-      // Garantir que cada perfil tenha conta como id (para o Dropdown)
-      data.perfis = data.perfis.map(p => ({ ...p, conta: p.conta?.id ?? p.conta }));
+      // Garantir que cada perfil tenha conta e categoria como id (para os Dropdowns)
+      data.perfis = data.perfis.map(p => ({ ...p, conta: p.conta?.id ?? p.conta, categoria: p.categoria?.id ?? p.categoria }));
       
       municipe.value = data;
 
@@ -294,17 +294,18 @@ async function carregarDados() {
 
     } else {
         resetForm();
-            
+        // Cria um perfil vazio para o usuário preencher (categoria é por perfil)
+        if (!municipe.value.perfis?.length && contasParaPerfil.value?.length) {
+            municipe.value.perfis = [{ conta: contasParaPerfil.value[0].id, categoria: null, cargo: '', instituicao: '', departamento: '', tratamento: '', ativo: true }];
+        }
         // --- LÓGICA AUTOMÁTICA PARA RECEPÇÃO ---
         // Verifica se o usuário tem perfil de Recepção
         const isRecepcao = authStore.user?.groups?.includes('Recepção');
         
-        if (isRecepcao) {
-            // Tenta achar a categoria "Munícipe" (case insensitive)
+        if (isRecepcao && municipe.value.perfis?.length) {
             const catMunicipe = categoriasContato.value.find(c => c.nome.toLowerCase() === 'munícipe' || c.nome.toLowerCase() === 'municipe');
-            
             if (catMunicipe) {
-                municipe.value.categoria = catMunicipe.id;
+                municipe.value.perfis[0].categoria = catMunicipe.id;
             }
         }
     }
@@ -349,9 +350,10 @@ function fecharModal() {
 
 // --- CORREÇÃO DA FUNÇÃO SALVAR ---
 const salvarMunicipe = async () => {
-    // 1. Validação Básica
-    if (!municipe.value.categoria) {
-        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Selecione a Categoria.', life: 4000 });
+    // 1. Validação: ao menos um perfil com categoria
+    const temPerfilComCategoria = municipe.value.perfis?.some(p => p.categoria);
+    if (!municipe.value.perfis?.length || !temPerfilComCategoria) {
+        toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Adicione ao menos um vínculo (cargo/órgão) com Categoria selecionada.', life: 4000 });
         return;
     }
     if (!municipe.value.nome_completo) {
@@ -379,6 +381,7 @@ const salvarMunicipe = async () => {
             payload.perfis = payload.perfis.map(p => ({
                 ...(p.id && { id: p.id }),
                 conta: typeof p.conta === 'object' ? p.conta?.id : p.conta,
+                categoria: typeof p.categoria === 'object' ? p.categoria?.id : p.categoria,
                 cargo: p.cargo || null,
                 instituicao: p.instituicao || null,
                 departamento: p.departamento || null,
@@ -464,6 +467,7 @@ function adicionarPerfil() {
   const primeiraConta = lista?.length ? lista[0].id : null;
   municipe.value.perfis.push({
     conta: primeiraConta,
+    categoria: null,
     cargo: '',
     instituicao: '',
     departamento: '',

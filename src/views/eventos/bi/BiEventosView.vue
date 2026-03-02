@@ -288,9 +288,9 @@ const exportarPDF = async () => {
                             <small class="text-500">Frequência em Listas</small>
                         </div>
                         <DataTable :value="dashboardData.top_convidados" size="small" stripedRows responsiveLayout="scroll">
-                            <Column field="municipe__nome_completo" header="Nome"></Column>
+                            <Column field="perfil__municipe__nome_completo" header="Nome"></Column>
                             <Column header="Categoria">
-                                <template #body="{data}"><Tag :value="data.municipe__categoria__nome || 'Geral'" severity="info" class="text-xs" /></template>
+                                <template #body="{data}"><Tag :value="data.perfil__categoria__nome || data.municipe__categoria__nome || 'Geral'" severity="info" class="text-xs" /></template>
                             </Column>
                             <Column field="frequencia" header="Vezes" class="text-right font-bold" style="width: 60px"></Column>
                         </DataTable>
@@ -306,7 +306,7 @@ const exportarPDF = async () => {
                         <DataTable :value="dashboardData.top_publico" size="small" stripedRows responsiveLayout="scroll">
                             <Column field="municipe__nome_completo" header="Nome"></Column>
                             <Column header="Categoria">
-                                <template #body="{data}"><Tag :value="data.municipe__categoria__nome || 'Público'" severity="warning" class="text-xs" /></template>
+                                <template #body="{data}"><Tag :value="data.municipe__perfis__categoria__nome || data.municipe__categoria__nome || 'Público'" severity="warning" class="text-xs" /></template>
                             </Column>
                             <Column field="frequencia" header="Vezes" class="text-right font-bold" style="width: 60px"></Column>
                         </DataTable>

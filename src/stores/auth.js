@@ -40,6 +40,11 @@ export const useAuthStore = defineStore('auth', {
       if (state.user.is_superuser) {
         return true;
       }
+      // Verifica se está no grupo Gestor de Eventos
+      const groups = state.user.groups || state.userGroups || [];
+      if (groups.includes('Gestor de Eventos')) {
+        return true;
+      }
       // Verifica se a permissão específica existe na lista de permissões do usuário
       if (state.user.user_permissions && state.user.user_permissions.includes('eventos.pode_gerenciar_eventos')) {
         return true;

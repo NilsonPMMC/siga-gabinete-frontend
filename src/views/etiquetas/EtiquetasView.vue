@@ -52,7 +52,9 @@
             >
                 <Column selectionMode="multiple" headerStyle="width: 3em"></Column>
                 <Column field="nome_completo" header="Nome" sortable></Column>
-                <Column field="categoria_nome" header="Categoria" sortable></Column>
+                <Column header="Categoria" sortable>
+                    <template #body="{ data }">{{ Array.isArray(data.categorias_nomes) ? data.categorias_nomes.join(', ') : (data.categoria_nome || '') }}</template>
+                </Column>
                 <Column header="Cargo(s) / Órgão(s)">
                     <template #body="slotProps">
                         {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}

@@ -23,9 +23,13 @@
                     <label for="nome_guerra">Nome de Guerra / Apelido</label>
                     <InputText id="nome_guerra" v-model="municipe.nome_de_guerra" />
                 </div>
-                <div class="field">
-                    <label for="edit-categoria">Categoria*</label>
-                    <Dropdown id="edit-categoria" v-model="municipe.categoria" :options="categoriasContato" optionLabel="nome" optionValue="id" />
+                <div class="field" v-if="municipe.perfis?.length">
+                    <label>Perfis (Cargo / Órgão / Categoria)</label>
+                    <div v-for="(perfil, idx) in municipe.perfis" :key="idx" class="p-3 mb-2 surface-100 border-round flex align-items-center gap-2 flex-wrap">
+                        <Dropdown v-model="perfil.categoria" :options="categoriasContato" optionLabel="nome" optionValue="id" placeholder="Categoria" class="flex-1 min-w-12rem" />
+                        <InputText v-model="perfil.cargo" placeholder="Cargo" class="flex-1 min-w-10rem" />
+                        <InputText v-model="perfil.instituicao" placeholder="Órgão" class="flex-1 min-w-10rem" />
+                    </div>
                 </div>
                 <div class="grid">
                     <div class="field col-12 md:col-6"><label for="edit-cpf">CPF</label><InputMask id="edit-cpf" v-model="municipe.cpf" mask="999.999.999-99" /></div>
@@ -164,6 +168,8 @@ async function carregarDadosIniciais() {
       if (!data.emails || data.emails.length === 0) data.emails = [{ tipo: 'principal', email: '' }];
       if (!data.endereco) data.endereco = {};
       if (data.data_nascimento) data.data_nascimento = new Date(data.data_nascimento + 'T00:00:00');
+      if (!Array.isArray(data.perfis)) data.perfis = [];
+      data.perfis = data.perfis.map(p => ({ ...p, conta: p.conta?.id ?? p.conta, categoria: p.categoria?.id ?? p.categoria }));
       municipe.value = data;
     }
   } catch (error) {
@@ -188,7 +194,18 @@ const salvarMunicipe = async () => {
             payload.data_nascimento = payload.data_nascimento.toISOString().split('T')[0];
         }
 
-        // 3. A MÁGICA: Transforma a lista de objetos 'contas' em uma lista de IDs
+        // 3. Perfis: enviar conta, categoria, cargo, instituicao
+        if (payload.perfis?.length) {
+            payload.perfis = payload.perfis.map(p => ({
+                ...(p.id && { id: p.id }),
+                conta: typeof p.conta === 'object' ? p.conta?.id : p.conta,
+                categoria: typeof p.categoria === 'object' ? p.categoria?.id : p.categoria,
+                cargo: p.cargo || null,
+                instituicao: p.instituicao || null,
+                ativo: p.ativo !== false
+            })).filter(p => p.conta);
+        }
+        // 4. Transforma a lista de objetos 'contas' em uma lista de IDs
         //    Verifica se 'contas' existe e se o primeiro item é um objeto (para evitar erros)
         if (payload.contas && payload.contas.length > 0 && typeof payload.contas[0] === 'object' && payload.contas[0] !== null) {
             payload.contas = payload.contas.map(conta => conta.id);
