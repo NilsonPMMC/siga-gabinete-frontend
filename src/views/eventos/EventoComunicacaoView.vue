@@ -60,6 +60,14 @@
                                         <Button label="Adicionar por Categoria" icon="pi pi-users" class="p-button-info p-button-sm" @click="abrirDialogoCategoria" />
                                         <Button label="Adicionar por Mailing" icon="pi pi-envelope" class="p-button-secondary p-button-sm" @click="abrirDialogoMailing" />
                                     </div>
+                                    <Button 
+                                        label="Gerar PDF" 
+                                        icon="pi pi-file-pdf" 
+                                        class="p-button-outlined p-button-sm ml-2" 
+                                        @click="gerarRelatorioPdf" 
+                                        :loading="gerandoPdf"
+                                        v-tooltip.bottom="'Baixar relatório com lista de destinatários e resumo da comunicação'"
+                                    />
                                 </template>
                             </Toolbar>
                             <DataTable :value="destinatarios" :loading="loading" responsiveLayout="scroll">
@@ -197,6 +205,7 @@ const eventoId = ref(null);
 
 const loading = ref(true);
 const enviando = ref(false);
+const gerandoPdf = ref(false);
 const evento = ref({});
 const comunicacao = ref({});
 const destinatarios = ref([]);
@@ -392,6 +401,26 @@ const getEmailPrincipal = (emails) => {
     if (!emails || emails.length === 0) return 'Nenhum e-mail';
     const principal = emails.find(e => e.tipo === 'principal');
     return principal ? principal.email : emails[0].email;
+};
+
+const gerarRelatorioPdf = async () => {
+    gerandoPdf.value = true;
+    try {
+        const response = await eventosService.getRelatorioComunicacaoPdf(comunicacaoId.value);
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `relatorio_comunicacao_${comunicacao.value.titulo?.replace(/[^a-z0-9]/gi, '_') || 'comunicacao'}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Relatório gerado com sucesso!', life: 3000 });
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o relatório PDF.', life: 3000 });
+    } finally {
+        gerandoPdf.value = false;
+    }
 };
 </script>
 

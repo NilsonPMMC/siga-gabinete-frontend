@@ -174,6 +174,11 @@ export default {
     getLogsDeEnvio(comunicacaoId) {
         return apiClient.get(`/api/logs-de-envio/?comunicacao=${comunicacaoId}`);
     },
+    getRelatorioComunicacaoPdf(comunicacaoId) {
+        return apiClient.get(`/api/comunicacoes/${comunicacaoId}/relatorio-pdf/`, {
+            responseType: 'blob',
+        });
+    },
     getListaDePresenca(eventoId) {
         return apiClient.get(`/api/lista-presenca/?evento=${eventoId}`);
     },

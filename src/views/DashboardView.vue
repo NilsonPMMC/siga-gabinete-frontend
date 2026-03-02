@@ -29,8 +29,7 @@ const statusOptions = ref([
   { label: 'Arquivado', value: 'ARQUIVADO' },
 ]);
 
-// --- NOVO ESTADO PARA CHECK-IN / REGISTRO DE VISITAS ---
-const visitasDoDia = ref([]);
+// --- ESTADO PARA CHECK-IN / REGISTRO DE VISITAS ---
 const summaryData = ref(null);
 
 // --- AGENDA / RECEPÇÃO HOJE: navegação por data ---
@@ -50,15 +49,6 @@ let searchTimeout = null;
 watch(municipeSelecionadoCheckIn, (novoValor) => {
     novoCheckIn.value.municipe = novoValor ? novoValor.id : null;
 });
-
-const carregarVisitasDoDia = async () => {
-    try {
-        const visitasRes = await apiClient.get('/api/checkins/');
-        visitasDoDia.value = visitasRes.data;
-    } catch (error) {
-        console.error("Erro ao carregar visitas do dia:", error);
-    }
-};
 
 const formatarDataAgenda = (dataStr) => {
     if (!dataStr) return '';
@@ -133,9 +123,6 @@ onMounted(async () => {
             contasOptions.value = todasAsContas.map(conta => ({ label: conta.nome, value: conta.id }));
         }
 
-        if (authStore.isRecepcao || authStore.user?.is_superuser) {
-            await carregarVisitasDoDia();
-        }
 
   } catch (error) {
     console.error("Erro ao carregar dados do dashboard:", error);
@@ -286,7 +273,7 @@ const salvarCheckIn = async () => {
         }
         
         dialogoCheckInVisivel.value = false;
-        await carregarVisitasDoDia(); // Recarrega a lista para refletir a mudança
+        await carregarVisitasAgenda(); // Recarrega a lista para refletir a mudança
         
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: `Não foi possível salvar o registro.`, life: 3000 });
@@ -305,7 +292,7 @@ const confirmarExclusaoCheckIn = (visita) => {
             try {
                 await apiClient.delete(`/api/checkins/${visita.id}/`);
                 toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Registro excluído.', life: 3000 });
-                await carregarVisitasDoDia(); // Recarrega a lista
+                await carregarVisitasAgenda(); // Recarrega a lista
             } catch (error) {
                 toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir o registro.', life: 3000 });
             }
@@ -335,6 +322,7 @@ const tituloDialogoCheckIn = computed(() => {
         <div class="flex align-items-center justify-content-between flex-wrap gap-2">
           <span>📅 Agenda / Recepção Hoje ({{ visitasAgenda.length }})</span>
           <div class="flex align-items-center gap-2">
+            <Button v-if="authStore.isRecepcao || authStore.user?.is_superuser" label="Registrar Visita" icon="pi pi-plus" size="small" @click="abrirDialogoParaCriacaoCheckIn" />
             <Button icon="pi pi-chevron-left" text rounded :disabled="!dataAgendaSelecionada" @click="irParaDataAnterior" title="Dia anterior" />
             <span class="text-sm font-medium">{{ formatarDataAgenda(dataAgendaSelecionada) }}</span>
             <Button icon="pi pi-chevron-right" text rounded :disabled="!podeAvancarData" @click="irParaProximaData" title="Próximo dia" />
@@ -357,31 +345,15 @@ const tituloDialogoCheckIn = computed(() => {
             </template>
           </Column>
           <Column field="observacao" header="Observação"></Column>
+          <Column v-if="authStore.isRecepcao || authStore.user?.is_superuser" header="Ações" style="width: 8rem; text-align: center;">
+            <template #body="{ data }">
+              <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicaoCheckIn(data)" title="Editar" />
+              <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmarExclusaoCheckIn(data)" title="Excluir" />
+            </template>
+          </Column>
           <template #empty>Nenhum registro de visita/compromisso para {{ dataAgendaSelecionada ? formatarDataAgenda(dataAgendaSelecionada) : 'esta data' }}.</template>
         </DataTable>
       </template>
-    </Card>
-
-    <Card class="mb-4" v-if="authStore.isRecepcao || authStore.user?.is_superuser">
-        <template #title>Visitantes de Hoje</template>
-        <template #content>
-            <DataTable :value="visitasDoDia" :loading="isLoading" responsiveLayout="scroll" :rows="5" paginator :alwaysShowPaginator="false">
-                <Column field="data_checkin" header="Horário">
-                    <template #body="slotProps">{{ new Date(slotProps.data.data_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}</template>
-                </Column>
-                <Column field="municipe_nome" header="Visitante"></Column>
-                <Column field="conta_destino_nome" header="Destino"></Column>
-                <Column field="observacao" header="Observação"></Column>
-                <Column field="registrado_por_nome" header="Registrado Por"></Column>
-                <Column header="Ações" style="width: 8rem; text-align: center;">
-                  <template #body="slotProps">
-                    <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicaoCheckIn(slotProps.data)" title="Editar" />
-                    <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmarExclusaoCheckIn(slotProps.data)" title="Excluir" />
-                  </template>
-                </Column>
-                <template #empty> Nenhum visitante registrado hoje. </template>
-            </DataTable>
-        </template>
     </Card>
 
     <Card class="mb-4">
