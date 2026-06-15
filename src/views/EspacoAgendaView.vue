@@ -10,6 +10,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import InputSwitch from 'primevue/inputswitch';
+import { baixarRelatorioEspacosPdf } from '@/utils/relatorioEspacos';
 
 // --- INICIALIZAÇÃO ---
 const route = useRoute();
@@ -38,6 +39,9 @@ const frequenciaOptions = ref([
     { label: 'Semanalmente', value: 'SEMANAL' },
 ]);
 
+const filtroPeriodoRelatorio = ref([]);
+const isGeneratingReport = ref(false);
+
 // --- INÍCIO DA CORREÇÃO ---
 // A linha abaixo estava faltando. Ela cria a variável computada que o template precisa.
 const isEdicaoRecorrente = computed(() => !!eventoEmEdicao.value.grupo_recorrencia);
@@ -59,6 +63,14 @@ const fetchAgendaData = async () => {
         ]);
         
         espaco.value = espacoRes.data;
+
+        if (!filtroPeriodoRelatorio.value?.length) {
+            const today = new Date();
+            filtroPeriodoRelatorio.value = [
+                new Date(today.getFullYear(), today.getMonth(), 1),
+                new Date(today.getFullYear(), today.getMonth() + 1, 0),
+            ];
+        }
 
         // Adiciona cor diferente para eventos recorrentes
         const eventosReservas = reservasRes.data.map(e => ({
@@ -251,6 +263,31 @@ const tituloDialogoEvento = computed(() => {
     if (isEdicaoRecorrente.value) return 'Editar Série de Reservas';
     return 'Editar Reserva';
 });
+
+const gerarRelatorioPdf = async () => {
+    if (!filtroPeriodoRelatorio.value?.[0] || !filtroPeriodoRelatorio.value?.[1]) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Atenção',
+            detail: 'Selecione o período para o relatório.',
+            life: 4000,
+        });
+        return;
+    }
+    isGeneratingReport.value = true;
+    try {
+        await baixarRelatorioEspacosPdf(apiClient, {
+            datas: filtroPeriodoRelatorio.value,
+            espacoId: espaco.value?.id,
+        });
+        toast.add({ severity: 'success', summary: 'Relatório', detail: 'PDF gerado com sucesso.', life: 3000 });
+    } catch (error) {
+        const detail = error.response?.data?.detail || 'Não foi possível gerar o relatório em PDF.';
+        toast.add({ severity: 'error', summary: 'Erro', detail, life: 5000 });
+    } finally {
+        isGeneratingReport.value = false;
+    }
+};
 </script>
 
 <template>
@@ -265,6 +302,37 @@ const tituloDialogoEvento = computed(() => {
                 <h1 class="ml-2">Agenda do Espaço: {{ espaco.nome }}</h1>
             </div>
         </header>
+
+        <Card class="mb-4">
+            <template #title>Relatório por período</template>
+            <template #content>
+                <div class="grid formgrid p-fluid align-items-end gap-3">
+                    <div class="field col-12 md:col-8">
+                        <label>Período</label>
+                        <Calendar
+                            v-model="filtroPeriodoRelatorio"
+                            selectionMode="range"
+                            dateFormat="dd/mm/yy"
+                            placeholder="Início — Fim"
+                            showIcon
+                            appendTo="body"
+                        />
+                    </div>
+                    <div class="field col-12 md:col-4">
+                        <Button
+                            label="Exportar PDF"
+                            icon="pi pi-file-pdf"
+                            class="p-button-danger w-full"
+                            :loading="isGeneratingReport"
+                            @click="gerarRelatorioPdf"
+                        />
+                    </div>
+                </div>
+                <small class="text-500 block mt-2">
+                    Relatório deste espaço: reservas e agendas agendadas no período (grade mensal em PDF).
+                </small>
+            </template>
+        </Card>
 
         <main>
             <Card>

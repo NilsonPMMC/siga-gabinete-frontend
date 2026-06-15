@@ -134,7 +134,8 @@ const statusOptions = ref([
     { label: 'Negado', value: 'NEGADO' },
     { label: 'Cancelado', value: 'CANCELADO' },
     { label: 'Reagendar', value: 'REAGENDAR' },
-    { label: 'Encaminhado', value: 'ENCAMINHADO' }
+    { label: 'Encaminhado', value: 'ENCAMINHADO' },
+    { label: 'Concluido', value: 'CONCLUIDO' }
 ]);
 
 const formatarData = (data) => {
@@ -176,7 +177,7 @@ const formatarPeriodoAgendado = (inicio, fim) => {
 };
 
 const getStatusSeverity = (status) => {
-  const map = { 'SOLICITADO': 'info', 'EM_ANALISE': 'warning', 'AGENDADO': 'success', 'AGENDAR': 'warning', 'NEGADO': 'danger', 'CANCELADO': 'secondary', 'REAGENDAR': 'warning', 'ENCAMINHADO': 'warning' };
+  const map = { 'SOLICITADO': 'info', 'EM_ANALISE': 'warning', 'AGENDADO': 'success', 'AGENDAR': 'warning', 'NEGADO': 'danger', 'CANCELADO': 'secondary', 'REAGENDAR': 'warning', 'ENCAMINHADO': 'warning', 'CONCLUIDO': 'success' };
   return map[status] || 'contrast';
 };
 

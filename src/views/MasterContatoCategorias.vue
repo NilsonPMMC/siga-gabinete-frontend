@@ -14,6 +14,50 @@
                 </div>
             </div>
             <div class="flex align-items-center gap-3">
+                <div class="flex flex-column gap-2">
+                    <MultiSelect
+                        v-model="categoriasSelecionadasIds"
+                        :options="categorias"
+                        optionLabel="nome"
+                        optionValue="id"
+                        display="chip"
+                        filter
+                        :maxSelectedLabels="2"
+                        selectedItemsLabel="{0} categorias"
+                        placeholder="Categorias no relatório"
+                        class="w-20rem"
+                    />
+                    <div class="flex gap-1">
+                        <Button
+                            label="Selecionar todas"
+                            icon="pi pi-check-square"
+                            class="p-button-text p-button-sm"
+                            @click="selecionarTodasCategorias"
+                            :disabled="!categorias.length || categoriasSelecionadasIds.length === categorias.length"
+                        />
+                        <Button
+                            label="Limpar"
+                            icon="pi pi-times"
+                            class="p-button-text p-button-sm p-button-secondary"
+                            @click="limparSelecaoCategorias"
+                            :disabled="!categoriasSelecionadasIds.length"
+                        />
+                    </div>
+                </div>
+                <Button
+                    label="Relatório CSV"
+                    icon="pi pi-file-excel"
+                    class="p-button-success p-button-outlined"
+                    @click="exportarRelatorioCategoriasCsv"
+                    :loading="isExportingCsv"
+                />
+                <Button
+                    label="Relatório PDF"
+                    icon="pi pi-file-pdf"
+                    class="p-button-danger p-button-outlined"
+                    @click="exportarRelatorioCategoriasPdf"
+                    :loading="isExportingPdf"
+                />
                 <Button label="Adicionar Novo Item" icon="pi pi-plus" @click="abrirModalNovo" />
             </div>
         </header>
@@ -66,6 +110,9 @@ const loading = ref(true);
 const modalVisivel = ref(false);
 const categoriaEditada = ref({});
 const submetido = ref(false);
+const categoriasSelecionadasIds = ref([]);
+const isExportingCsv = ref(false);
+const isExportingPdf = ref(false);
 
 const modalTitulo = computed(() => {
     return categoriaEditada.value.id ? 'Editar Categoria' : 'Adicionar Nova Categoria';
@@ -76,6 +123,9 @@ const carregarCategorias = async () => {
     try {
         const response = await contatosService.getCategorias();
         categorias.value = response.data;
+        if (!categoriasSelecionadasIds.value.length) {
+            categoriasSelecionadasIds.value = categorias.value.map((c) => c.id);
+        }
     } catch (err) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar as categorias.', life: 3000 });
     } finally {
@@ -142,6 +192,55 @@ const confirmarExclusao = (categoria) => {
             }
         }
     });
+};
+
+const baixarBlob = (response, fallbackName) => {
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    const cd = response.headers?.['content-disposition'];
+    let fileName = fallbackName;
+    if (cd) {
+        const match = cd.match(/filename=\"?([^"]+)\"?/i);
+        if (match?.[1]) fileName = match[1];
+    }
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+};
+
+const exportarRelatorioCategoriasCsv = async () => {
+    isExportingCsv.value = true;
+    try {
+        const response = await contatosService.exportarRelatorioCategoriasCsv(categoriasSelecionadasIds.value);
+        baixarBlob(response, 'relatorio_categorias_contatos.csv');
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o CSV.', life: 3500 });
+    } finally {
+        isExportingCsv.value = false;
+    }
+};
+
+const exportarRelatorioCategoriasPdf = async () => {
+    isExportingPdf.value = true;
+    try {
+        const response = await contatosService.exportarRelatorioCategoriasPdf(categoriasSelecionadasIds.value);
+        baixarBlob(response, 'relatorio_categorias_contatos.pdf');
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o PDF.', life: 3500 });
+    } finally {
+        isExportingPdf.value = false;
+    }
+};
+
+const selecionarTodasCategorias = () => {
+    categoriasSelecionadasIds.value = categorias.value.map((c) => c.id);
+};
+
+const limparSelecaoCategorias = () => {
+    categoriasSelecionadasIds.value = [];
 };
 </script>
 

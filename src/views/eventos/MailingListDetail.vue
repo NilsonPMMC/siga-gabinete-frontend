@@ -26,7 +26,7 @@
                 <Column field="nome_completo" header="Nome" :sortable="true"></Column>
                 <Column header="Cargo(s) / Órgão(s)">
                     <template #body="slotProps">
-                        {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}
+                        {{ formatarPerfis(perfisContaGerencial(slotProps.data.perfis)) || '—' }}
                     </template>
                 </Column>
                 <Column header="E-mail Principal">
@@ -61,8 +61,8 @@
                             <small v-if="slotProps.item.nome_de_guerra" class="text-sm text-primary-500 font-italic">
                                 {{ slotProps.item.nome_de_guerra }}
                             </small>
-                            <small v-if="formatarPerfis(slotProps.item.perfis, slotProps.item.cargo, slotProps.item.orgao)" class="text-sm text-color-secondary">
-                                {{ formatarPerfis(slotProps.item.perfis, slotProps.item.cargo, slotProps.item.orgao) }}
+                            <small v-if="formatarPerfis(perfisContaGerencial(slotProps.item.perfis))" class="text-sm text-color-secondary">
+                                {{ formatarPerfis(perfisContaGerencial(slotProps.item.perfis)) }}
                             </small>
                         </div>
                     </template>
@@ -102,6 +102,7 @@ import apiClient from '@/api';
 import { formatarPerfis } from '@/services/comum';
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
+import { useAuthStore } from '@/stores/auth';
 import eventosService from '@/services/eventos';
 
 import DataTable from 'primevue/datatable';
@@ -116,6 +117,7 @@ import ConfirmDialog from 'primevue/confirmdialog';
 const route = useRoute();
 const toast = useToast();
 const confirm = useConfirm();
+const authStore = useAuthStore();
 const listId = route.params.id;
 
 const mailingList = ref({});
@@ -131,6 +133,19 @@ const dialogoCategoriaVisivel = ref(false);
 const categorias = ref([]);
 const categoriaSelecionada = ref(null);
 const loadingCategorias = ref(false);
+
+const getContaGerencialId = () => {
+    if (mailingList.value?.conta) return Number(mailingList.value.conta);
+    if (authStore.userContas?.length) return Number(authStore.userContas[0]);
+    return null;
+};
+
+const perfisContaGerencial = (perfis) => {
+    if (!Array.isArray(perfis) || !perfis.length) return [];
+    const contaGerencialId = getContaGerencialId();
+    if (!contaGerencialId) return perfis;
+    return perfis.filter((p) => Number(p?.conta) === contaGerencialId);
+};
 
 const carregarDados = async () => {
     loading.value = true;

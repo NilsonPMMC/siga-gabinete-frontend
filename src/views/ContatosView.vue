@@ -4,8 +4,11 @@ import { useRouter } from 'vue-router';
 import apiClient from '@/api';
 import contatosService from '@/services/contatos';
 import { formatarPerfis } from '@/services/comum';
+import { unwrapPaginatedResponse } from '@/utils/paginatedApi';
+import { filtrarContatosEmGruposValidos } from '@/utils/duplicatasGrupos';
 import { useToast } from "primevue/usetoast";
 import { useAuthStore } from '@/stores/auth';
+import { useDuplicatasStore } from '@/stores/duplicatas';
 import { useConfirm } from "primevue/useconfirm";
 import MultiSelect from 'primevue/multiselect';
 import InputSwitch from 'primevue/inputswitch';
@@ -15,23 +18,36 @@ import { ptBR } from 'date-fns/locale';
 // COMPONENTES REUTILIZÁVEIS
 import MunicipeFormModal from '@/components/municipes/MunicipeFormModal.vue';
 import MunicipeUnificarModal from '@/components/municipes/MunicipeUnificarModal.vue'; // <--- IMPORTANTE
+import AiEnrichmentModal from '@/components/municipes/AiEnrichmentModal.vue';
 
 // --- DECLARAÇÕES INICIAIS ---
 const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
+const duplicatasStore = useDuplicatasStore();
 const confirm = useConfirm();
+
+const podeVerDuplicatas = computed(() => (
+  authStore.isSecretaria || authStore.isSuperuser || authStore.isMembro
+));
+
+const isOperadorCrmRestrito = computed(() => authStore.isUsuarioEstritamenteOperadorCrm);
 
 const isLoading = ref(true);
 const isExporting = ref(false);
+const isExportingAniversariantes = ref(false);
 
-const todosMunicipes = ref([]);
 const municipesNaTela = ref([]);
+const totalRecords = ref(0);
+const first = ref(0);
+const page = ref(1);
+const pageSize = ref(25);
 const filtroTexto = ref('');
 const filtroLetra = ref('');
 const filtroCategorias = ref([]);
 const alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 const filtroOrdem = ref('nome');
+const filtroApenasDuplicatas = ref(false);
 const modoIA = ref(false);
 const resultadosBuscaIA = ref([]);
 const ordemOptions = ref([
@@ -41,6 +57,7 @@ const ordemOptions = ref([
 const municipesSelecionados = ref([]);
 const categoriasContato = ref([]);
 const contas = ref([]);
+const contasUsuarioIds = computed(() => new Set(authStore.userContas || []));
 
 // --- ESTADOS DO MODAL FORM ---
 const showMunicipeModal = ref(false);
@@ -67,24 +84,48 @@ onMounted(() => {
     isLoading.value = false;
     return;
   }
+  if (podeVerDuplicatas.value) {
+    duplicatasStore.fetchContador();
+  }
   carregarDadosIniciais();
   carregarAniversariantes(dataAniversariantesVisivel.value);
 });
 
-const carregarDadosIniciais = async () => {
+const montarParamsMunicipes = () => {
+    const params = new URLSearchParams();
+    if (filtroApenasDuplicatas.value) {
+        params.append('tem_grupo_duplicado', 'true');
+        if (filtroTexto.value) params.append('q', filtroTexto.value.trim());
+        if (filtroCategorias.value?.length) {
+            filtroCategorias.value.forEach((id) => params.append('categoria_id', id));
+        }
+        return params;
+    }
+    params.append('page', String(page.value));
+    params.append('page_size', String(pageSize.value));
+    params.append('ordenar_por', filtroOrdem.value);
+    if (filtroTexto.value) params.append('q', filtroTexto.value.trim());
+    if (filtroLetra.value) params.append('letra', filtroLetra.value);
+    if (filtroCategorias.value?.length) {
+        filtroCategorias.value.forEach((id) => params.append('categoria_id', id));
+    }
+    return params;
+};
+
+const carregarMunicipes = async () => {
     isLoading.value = true;
     try {
-        const [municipesRes, categoriasRes, contasRes] = await Promise.all([
-            apiClient.get('/api/municipes/'),
-            apiClient.get('/api/contatos/categorias/'),
-            apiClient.get('/api/contas/')
-        ]);
-
-        todosMunicipes.value = municipesRes.data;
-        municipesNaTela.value = [...municipesRes.data];
-        categoriasContato.value = categoriasRes.data;
-        contas.value = contasRes.data;
-
+        const response = await apiClient.get('/api/municipes/', { params: montarParamsMunicipes() });
+        const { results, count } = unwrapPaginatedResponse(response);
+        if (filtroApenasDuplicatas.value) {
+            const validos = filtrarContatosEmGruposValidos(results);
+            municipesNaTela.value = validos;
+            totalRecords.value = validos.length;
+            first.value = 0;
+        } else {
+            municipesNaTela.value = results;
+            totalRecords.value = count;
+        }
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os contatos.' });
     } finally {
@@ -92,10 +133,40 @@ const carregarDadosIniciais = async () => {
     }
 };
 
+const carregarDadosIniciais = async () => {
+    try {
+        const [categoriasRes, contasRes] = await Promise.all([
+            apiClient.get('/api/contatos/categorias/'),
+            apiClient.get('/api/contas/'),
+        ]);
+        categoriasContato.value = categoriasRes.data;
+        contas.value = contasRes.data;
+        await carregarMunicipes();
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os contatos.' });
+    }
+};
+
+const onPage = async (event) => {
+    first.value = event.first;
+    pageSize.value = event.rows;
+    page.value = Math.floor(event.first / event.rows) + 1;
+    await carregarMunicipes();
+};
+
 // --- FUNÇÕES DE FILTRO E BUSCA (MANTIDAS) ---
 const isLoadingIA = ref(false);
 
 const aplicarFiltros = async () => {
+  if (filtroApenasDuplicatas.value) {
+    modoIA.value = false;
+    resultadosBuscaIA.value = [];
+    first.value = 0;
+    page.value = 1;
+    await carregarMunicipes();
+    return;
+  }
+
   if (modoIA.value) {
     if (!filtroTexto.value.trim()) {
       toast.add({ severity: 'warn', summary: 'Busca IA', detail: 'Digite um termo para buscar.', life: 3000 });
@@ -116,36 +187,31 @@ const aplicarFiltros = async () => {
     return;
   }
 
-  isLoading.value = true;
   resultadosBuscaIA.value = [];
-
-  const params = new URLSearchParams();
-  if (filtroTexto.value) params.append('q', filtroTexto.value);
-  if (filtroLetra.value) params.append('letra', filtroLetra.value);
-
-  if (filtroCategorias.value && filtroCategorias.value.length > 0) {
-    filtroCategorias.value.forEach(id => {
-      params.append('categoria_id', id);
-    });
-  }
-
-  try {
-    const response = await apiClient.get('/api/municipes/', { params });
-    municipesNaTela.value = response.data;
-  } catch (error) {
-    console.error("Erro ao buscar contatos:", error);
-  } finally {
-    isLoading.value = false;
-  }
+  first.value = 0;
+  page.value = 1;
+  await carregarMunicipes();
 };
 
 const limparFiltros = async () => {
   filtroTexto.value = '';
   filtroLetra.value = '';
   filtroCategorias.value = [];
+  filtroApenasDuplicatas.value = false;
   modoIA.value = false;
   resultadosBuscaIA.value = [];
   await carregarDadosIniciais();
+};
+
+const alternarFiltroDuplicatas = async () => {
+  if (filtroApenasDuplicatas.value) {
+    modoIA.value = false;
+    resultadosBuscaIA.value = [];
+    filtroLetra.value = '';
+  }
+  first.value = 0;
+  page.value = 1;
+  await aplicarFiltros();
 };
 
 const filtrarPorLetra = async (letra) => {
@@ -170,39 +236,44 @@ const abrirDialogoParaEdicao = (municipe) => {
     showMunicipeModal.value = true;
 };
 
-const aoSalvarMunicipe = (contatoSalvo) => {
-    // Verifica se é uma edição (contato já existia) ou criação (novo contato)
-    const indexEmTodos = todosMunicipes.value.findIndex(m => m.id === contatoSalvo.id);
+const aoSalvarMunicipe = async (contatoSalvo) => {
     const indexNaTela = municipesNaTela.value.findIndex(m => m.id === contatoSalvo.id);
-    
-    if (indexEmTodos !== -1) {
-        // É uma edição - atualiza o contato existente
-        todosMunicipes.value[indexEmTodos] = contatoSalvo;
-        
-        // Atualiza na tela também se estiver visível
-        if (indexNaTela !== -1) {
-            municipesNaTela.value[indexNaTela] = contatoSalvo;
-        }
-        // Se não está na tela (por causa de filtros), não faz nada
-        // O contato já foi atualizado em todosMunicipes
+    if (indexNaTela !== -1) {
+        municipesNaTela.value[indexNaTela] = contatoSalvo;
     } else {
-        // É um novo contato - adiciona no início
-        todosMunicipes.value.unshift(contatoSalvo);
-        
-        // Só adiciona na tela se não houver filtros ativos
-        // ou se o contato passar pelos filtros
-        const temFiltrosAtivos = filtroTexto.value || filtroLetra.value || (filtroCategorias.value && filtroCategorias.value.length > 0);
-        if (!temFiltrosAtivos) {
-            // Sem filtros, adiciona diretamente
-            municipesNaTela.value.unshift(contatoSalvo);
-        } else {
-            // Com filtros, recarrega para garantir que o novo contato seja filtrado corretamente
-            aplicarFiltros();
-        }
+        first.value = 0;
+        page.value = 1;
+        await carregarMunicipes();
     }
-    
     showMunicipeModal.value = false;
     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Lista atualizada.', life: 2000 });
+};
+
+const aoEnriquecimentoAplicado = ({ contactId, enrichedData, applyFields }) => {
+  const flags = {
+    emails: applyFields?.emails ?? true,
+    telefones: applyFields?.telefones ?? true,
+    endereco: applyFields?.endereco ?? true,
+    cargo: applyFields?.cargo ?? true,
+    orgao: applyFields?.orgao ?? true,
+    etiqueta_mala_direta: applyFields?.etiqueta_mala_direta ?? true,
+  };
+  const patchContato = (contato) => {
+    if (!contato || contato.id !== contactId) return contato;
+    const emails = (enrichedData.emails || []).map((email) => ({ email }));
+    const telefones = (enrichedData.telefones || []).map((numero) => ({ numero }));
+    return {
+      ...contato,
+      emails: flags.emails ? emails : contato.emails,
+      telefones: flags.telefones ? telefones : contato.telefones,
+      endereco: flags.endereco ? { ...(contato.endereco || {}), texto_livre: enrichedData.endereco || '' } : contato.endereco,
+      cargo: flags.cargo ? (enrichedData.cargo || '') : contato.cargo,
+      orgao: flags.orgao ? (enrichedData.orgao || '') : contato.orgao,
+      dados_etiqueta: flags.etiqueta_mala_direta ? (enrichedData.etiqueta_mala_direta || '') : contato.dados_etiqueta,
+    };
+  };
+
+  municipesNaTela.value = municipesNaTela.value.map(patchContato);
 };
 
 // --- AÇÕES COM INTELIGÊNCIA DE FUSÃO ---
@@ -247,9 +318,8 @@ const confirmarExclusaoReal = (contato) => {
     accept: async () => {
       try {
         await apiClient.delete(`/api/municipes/${contato.id}/`);
-        todosMunicipes.value = todosMunicipes.value.filter(m => m.id !== contato.id);
-        municipesNaTela.value = municipesNaTela.value.filter(m => m.id !== contato.id);
         toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato excluído.', life: 3000 });
+        await carregarMunicipes();
       } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o contato.', life: 3000 });
       }
@@ -257,18 +327,33 @@ const confirmarExclusaoReal = (contato) => {
   });
 };
 
-const aoUnificar = () => {
-    // Recarrega tudo após fusão para garantir consistência
-    carregarDadosIniciais();
+const aoUnificar = async () => {
+    await carregarDadosIniciais();
+    if (podeVerDuplicatas.value) {
+      await duplicatasStore.fetchContador();
+    }
 };
 
-const irParaVisao360 = (id) => router.push(`/municipes/${id}/historico`);
+const irParaVisao360 = (id) => {
+  if (isOperadorCrmRestrito.value) {
+    abrirDialogoParaEdicao({ id });
+    return;
+  }
+  router.push(`/municipes/${id}/historico`);
+};
 
 const copiarTexto = (texto) => {
   if (!texto) return;
   navigator.clipboard.writeText(texto).then(() => {
     toast.add({ severity: 'success', summary: 'Copiado', detail: `'${texto}' copiado.`, life: 2000 });
   });
+};
+
+const filtrarPerfisDoUsuario = (perfis = []) => {
+  if (!Array.isArray(perfis)) return [];
+  if (authStore.isSuperuser) return perfis;
+  const ids = contasUsuarioIds.value;
+  return perfis.filter((p) => ids.has(p?.conta?.id ?? p?.conta));
 };
 
 // --- FUNÇÕES DE ANIVERSARIANTES (MANTIDAS) ---
@@ -308,8 +393,44 @@ const ehHoje = computed(() => {
     return format(dataAniversariantesVisivel.value, 'yyyy-MM-dd') === format(startOfToday(), 'yyyy-MM-dd');
 });
 
+const exportarAniversariantesPDF = async () => {
+  isExportingAniversariantes.value = true;
+  try {
+    const dataFormatada = format(dataAniversariantesVisivel.value, 'yyyy-MM-dd');
+    const response = await apiClient.get('/api/municipes/aniversariantes-do-dia/pdf/', {
+      params: { data: dataFormatada },
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `relatorio_aniversariantes_${dataFormatada.replaceAll('-', '')}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o PDF de aniversariantes.', life: 3000 });
+  } finally {
+    isExportingAniversariantes.value = false;
+  }
+};
+
 
 // --- EXPORTAÇÕES (MANTIDAS) ---
+const extrairErroExportacao = async (error, fallback) => {
+  const data = error.response?.data;
+  if (data instanceof Blob) {
+    try {
+      const json = JSON.parse(await data.text());
+      return json.detail || json.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  return error.response?.data?.detail || error.response?.data?.error || fallback;
+};
+
 const exportarExcel = async () => {
   isExporting.value = true;
   try {
@@ -330,7 +451,8 @@ const exportarExcel = async () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar a planilha.', life: 3000 });
+    const detail = await extrairErroExportacao(error, 'Não foi possível gerar a planilha.');
+    toast.add({ severity: 'error', summary: 'Erro', detail, life: 4000 });
   } finally {
     isExporting.value = false;
   }
@@ -356,7 +478,8 @@ const exportarPDF = async () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível gerar o PDF.', life: 3000 });
+    const detail = await extrairErroExportacao(error, 'Não foi possível gerar o PDF.');
+    toast.add({ severity: 'error', summary: 'Erro', detail, life: 4000 });
   } finally {
     isExporting.value = false;
   }
@@ -401,12 +524,6 @@ const executarAtualizacaoCategoriaLote = async () => {
                      m.categorias_nomes = [nomeCategoria];
                  }
              });
-             todosMunicipes.value.forEach(m => {
-                 if (idsParaAtualizar.includes(m.id) && m.perfis) {
-                     m.perfis.forEach(p => { if (perfilIds.includes(p.id)) p.categoria_nome = nomeCategoria; });
-                     m.categorias_nomes = [nomeCategoria];
-                 }
-             });
         }
 
         municipesSelecionados.value = []; 
@@ -431,6 +548,7 @@ const executarAtualizacaoCategoriaLote = async () => {
       <div>
         <Button label="Novo Contato" icon="pi pi-plus" @click="abrirDialogoParaCriacao" class="p-button-success mr-2" />
         <Button 
+            v-if="!isOperadorCrmRestrito"
             label="Alterar Categoria em Lote" 
             icon="pi pi-tags" 
             class="p-button-info" 
@@ -466,13 +584,13 @@ const executarAtualizacaoCategoriaLote = async () => {
               <InputText
                 v-model="filtroTexto"
                 @keyup.enter="aplicarFiltros"
-                placeholder="Digite para buscar..."
+                placeholder="Nome, CPF, matrícula RH, cargo, categoria ou órgão..."
                 :class="{ 'busca-ia-ativa': modoIA }"
                 class="flex-1 min-w-0"
               />
-              <div class="flex align-items-center gap-2">
-                <InputSwitch id="modoIA" v-model="modoIA" />
-                <label for="modoIA" class="cursor-pointer flex align-items-center gap-1">
+              <div v-if="!isOperadorCrmRestrito" class="flex align-items-center gap-2">
+                <InputSwitch id="modoIA" v-model="modoIA" :disabled="filtroApenasDuplicatas" />
+                <label for="modoIA" class="cursor-pointer flex align-items-center gap-1" :class="{ 'opacity-60': filtroApenasDuplicatas }">
                   <i class="pi pi-sparkles"></i>
                   <span>Busca Inteligente</span>
                 </label>
@@ -483,21 +601,33 @@ const executarAtualizacaoCategoriaLote = async () => {
             <label>Filtrar Categoria(s)</label>
             <MultiSelect v-model="filtroCategorias" :options="categoriasContato" optionLabel="nome" optionValue="id" placeholder="Filtrar por Categoria" display="chip" />
           </div>
-          <div class="field col-2 p-0">
+          <div class="field col-2 p-0" v-if="podeVerDuplicatas">
+            <label>Apenas duplicatas</label>
+            <div class="flex align-items-center gap-2 h-full pt-1">
+              <InputSwitch v-model="filtroApenasDuplicatas" @change="alternarFiltroDuplicatas" />
+              <span class="text-sm text-color-secondary">
+                {{ duplicatasStore.totalGrupos }} grupo(s)
+              </span>
+            </div>
+          </div>
+          <div class="field col-2 p-0" :class="{ 'col-3': !podeVerDuplicatas }">
             <label>Ordenar Relatório</label>
-            <Dropdown v-model="filtroOrdem" :options="ordemOptions" optionLabel="label" optionValue="value" placeholder="Ordenar por" />
+            <Dropdown v-model="filtroOrdem" :options="ordemOptions" optionLabel="label" optionValue="value" placeholder="Ordenar por" :disabled="filtroApenasDuplicatas" />
           </div>
         </div>
         <div class="grid formgrid gap-2">
             <Button label="Buscar" icon="pi pi-search" @click="aplicarFiltros" :loading="modoIA ? isLoadingIA : isLoading" />
             <Button label="Limpar" icon="pi pi-filter-slash" @click="limparFiltros" class="p-button-secondary" />
+            <router-link v-if="podeVerDuplicatas && filtroApenasDuplicatas" to="/gestao-duplicatas">
+              <Button label="Gerenciar duplicatas" icon="pi pi-copy" class="p-button-warning p-button-outlined" />
+            </router-link>
             <Button label="Exportar Excel" icon="pi pi-file-excel" class="p-button-success" @click="exportarExcel" :loading="isExporting" />
             <Button label="Exportar PDF" icon="pi pi-file-pdf" class="p-button-danger" @click="exportarPDF" :loading="isExporting" />
         </div>
       </template>
     </Card>
 
-    <div class="alphabet-filter my-4 flex flex-wrap justify-content-center gap-2">
+    <div class="alphabet-filter my-4 flex flex-wrap justify-content-center gap-2" v-if="!filtroApenasDuplicatas">
       <Button 
         v-for="letra in alfabeto" :key="letra" :label="letra" 
         @click="filtrarPorLetra(letra)" 
@@ -512,21 +642,44 @@ const executarAtualizacaoCategoriaLote = async () => {
         <span>Consultando a IA...</span>
       </div>
 
-      <div v-else-if="!modoIA" class="my-3 text-sm text-color-secondary">Exibindo {{ municipesNaTela.length }} contato(s).</div>
+      <div v-else-if="!modoIA" class="my-3 text-sm text-color-secondary">
+        Exibindo {{ municipesNaTela.length }} de {{ totalRecords }} contato(s)<span v-if="filtroApenasDuplicatas"> em grupos de duplicata</span>.
+      </div>
       <div v-else class="my-3 text-sm text-color-secondary">Exibindo {{ resultadosBuscaIA.length }} resultado(s) da busca inteligente.</div>
 
       <DataTable
         v-if="!modoIA"
         :value="municipesNaTela"
         v-model:selection="municipesSelecionados" dataKey="id"
-        :loading="isLoading" 
-        paginator :rows="15"
+        :loading="isLoading"
+        paginator
+        :lazy="!filtroApenasDuplicatas"
+        :rows="pageSize"
+        :first="first"
+        :totalRecords="totalRecords"
+        :rowsPerPageOptions="[10, 25, 50, 100]"
+        @page="onPage"
         responsiveLayout="scroll" stripedRows size="small"
       >
         <Column selectionMode="multiple" headerStyle="width: 3em"></Column>
         <Column field="nome_completo" header="Nome" sortable>
           <template #body="slotProps">
-            <a href="#" @click.prevent="irParaVisao360(slotProps.data.id)">{{ slotProps.data.nome_completo }}</a>
+            <div class="flex align-items-center gap-2 flex-wrap">
+              <span v-if="!isOperadorCrmRestrito">{{ slotProps.data.nome_completo }}</span>
+              <a v-else href="#" @click.prevent="irParaVisao360(slotProps.data.id)">{{ slotProps.data.nome_completo }}</a>
+              <Tag
+                v-if="slotProps.data.grupo_duplicado"
+                value="Duplicata"
+                severity="danger"
+                v-tooltip="'Contato em grupo de possível duplicata'"
+              />
+              <Tag
+                v-if="slotProps.data.tem_perfis_duplicados"
+                value="Perfis duplicados"
+                severity="warning"
+                v-tooltip="'Este contato possui vínculos com o mesmo cargo e gabinete'"
+              />
+            </div>
           </template>
         </Column>
         <Column field="categorias_nomes" header="Categoria" sortable>
@@ -534,7 +687,7 @@ const executarAtualizacaoCategoriaLote = async () => {
         </Column>
         <Column header="Cargo(s) / Órgão(s)">
           <template #body="slotProps">
-            {{ formatarPerfis(slotProps.data.perfis, slotProps.data.cargo, slotProps.data.orgao) || '—' }}
+            {{ formatarPerfis(filtrarPerfisDoUsuario(slotProps.data.perfis), slotProps.data.cargo, slotProps.data.orgao) || '—' }}
           </template>
         </Column>
         <Column field="emails" header="Email Principal">
@@ -562,7 +715,8 @@ const executarAtualizacaoCategoriaLote = async () => {
         </Column>
         <Column header="Ações" style="width: 10rem">
           <template #body="slotProps">
-            <Button icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico" />
+            <AiEnrichmentModal v-if="!isOperadorCrmRestrito" :contact="slotProps.data" @applied="aoEnriquecimentoAplicado" />
+            <Button v-if="!isOperadorCrmRestrito" icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico" />
             <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicao(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Editar" />
             <Button icon="pi pi-trash" text rounded severity="danger" @click="tentarExcluirContato(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Excluir" />
           </template>
@@ -633,10 +787,19 @@ const executarAtualizacaoCategoriaLote = async () => {
     />
 
     <Dialog v-model:visible="dialogoAniversariantesVisivel" :header="`Aniversariantes do dia ${dataAniversariantesFormatada}`" modal :style="{ width: '1000px' }">
+        <div class="flex justify-content-end mb-3">
+            <Button
+                label="Relatório PDF"
+                icon="pi pi-file-pdf"
+                class="p-button-danger p-button-sm"
+                @click="exportarAniversariantesPDF"
+                :loading="isExportingAniversariantes"
+            />
+        </div>
         <DataTable :value="aniversariantes" size="small" paginator :rows="10">
             <Column field="nome_completo" header="Nome" sortable></Column>
             <Column header="Cargo(s) / Órgão(s)">
-                <template #body="{ data }">{{ formatarPerfis(data.perfis, data.cargo, data.orgao) || '—' }}</template>
+                <template #body="{ data }">{{ formatarPerfis(filtrarPerfisDoUsuario(data.perfis), data.cargo, data.orgao) || '—' }}</template>
             </Column>
             <Column field="telefones" header="Telefone">
                 <template #body="{ data }">{{ data.telefones?.[0]?.numero || 'N/D' }}</template>

@@ -33,6 +33,7 @@ const showAlterarStatusModal = ref(false);
 const showRedirecionarModal = ref(false);
 const showCompartilharModal = ref(false);
 const recarregandoResumo = ref(false);
+const sugerindoAssunto = ref(false);
 
 onMounted(async () => {
   await carregarAtendimento();
@@ -78,6 +79,44 @@ const parseResumoIA = (text) => {
 };
 
 const resumoIAParsed = computed(() => parseResumoIA(atendimento.value?.resumo_ia_local));
+
+const sugerirAssuntoIA = async () => {
+    if (!atendimento.value?.id) return;
+    sugerindoAssunto.value = true;
+    try {
+        const res = await apiClient.post(`/api/atendimentos/${atendimento.value.id}/sugerir-assunto/`);
+        atendimento.value = res.data;
+        const s = res.data.sugestao_ia;
+        const pct = s?.confianca != null ? ` (${Math.round(s.confianca * 100)}%)` : '';
+        toast.add({
+            severity: 'success',
+            summary: 'Sugestão IA',
+            detail: `${s?.assunto_nome || 'Assunto'}${pct}`,
+            life: 4000,
+        });
+    } catch (error) {
+        const msg = error.response?.data?.erro || error.response?.data?.detail || 'Erro ao sugerir assunto.';
+        toast.add({ severity: 'error', summary: 'Erro', detail: msg, life: 4000 });
+    } finally {
+        sugerindoAssunto.value = false;
+    }
+};
+
+const aplicarSugestaoAssunto = async () => {
+    const sid = atendimento.value?.assunto_ia_sugerido;
+    if (!atendimento.value?.id || !sid) return;
+    sugerindoAssunto.value = true;
+    try {
+        const res = await apiClient.patch(`/api/atendimentos/${atendimento.value.id}/`, { assunto_id: sid });
+        atendimento.value = res.data;
+        toast.add({ severity: 'success', summary: 'Assunto aplicado', detail: res.data.assunto_nome, life: 3000 });
+    } catch (error) {
+        const msg = error.response?.data?.detail || 'Não foi possível aplicar a sugestão.';
+        toast.add({ severity: 'error', summary: 'Erro', detail: msg, life: 4000 });
+    } finally {
+        sugerindoAssunto.value = false;
+    }
+};
 
 const recarregarResumoIA = async () => {
     if (!atendimento.value?.id) return;
@@ -253,18 +292,49 @@ const gerarPdfDetalhado = async () => {
                     <small class="p-text-secondary">Clique no ícone para alterar o status</small>
                 </div>
                 
-                <!-- Categorias (somente visualização) -->
-                <div class="field" v-if="atendimento.categorias && atendimento.categorias.length > 0">
-                    <label>Categorias</label>
-                    <div class="flex flex-wrap gap-2">
-                        <Chip 
-                            v-for="categoria in atendimento.categorias" 
-                            :key="categoria.id" 
-                            :label="categoria.nome" 
-                            class="text-sm"
+                <!-- Assunto -->
+                <div class="field mb-4">
+                    <label>Assunto</label>
+                    <div class="flex align-items-center gap-2 flex-wrap mb-2">
+                        <Tag
+                            v-if="atendimento.assunto_nome"
+                            :value="atendimento.assunto_nome"
+                            severity="info"
+                        />
+                        <span v-else class="text-color-secondary">Não classificado</span>
+                        <Tag
+                            v-if="atendimento.assunto_ia_status"
+                            :value="`IA: ${atendimento.assunto_ia_status}`"
+                            severity="secondary"
+                            class="text-xs"
                         />
                     </div>
+                    <div
+                        v-if="atendimento.assunto_ia_sugerido_nome && atendimento.assunto_ia_status === 'PENDENTE'"
+                        class="flex align-items-center gap-2 flex-wrap mb-2"
+                    >
+                        <span class="text-sm">Sugestão IA: <strong>{{ atendimento.assunto_ia_sugerido_nome }}</strong></span>
+                        <Button
+                            label="Aplicar sugestão"
+                            icon="pi pi-check"
+                            size="small"
+                            severity="success"
+                            outlined
+                            :loading="sugerindoAssunto"
+                            @click="aplicarSugestaoAssunto"
+                        />
+                    </div>
+                    <Button
+                        label="Sugerir assunto (IA)"
+                        icon="pi pi-sparkles"
+                        size="small"
+                        severity="secondary"
+                        outlined
+                        :loading="sugerindoAssunto"
+                        @click="sugerirAssuntoIA"
+                    />
                 </div>
+
               </div>
             </div>
 

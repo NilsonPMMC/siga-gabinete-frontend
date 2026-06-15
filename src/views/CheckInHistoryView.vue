@@ -45,7 +45,7 @@ const carregarVisitas = async () => {
 };
 
 onMounted(async () => {
-    if (!authStore.isAuthenticated) {
+    if (!authStore.isAuthenticated || !authStore.canViewRelatoriosCheckins) {
         isLoading.value = false;
         return;
     }
@@ -159,7 +159,7 @@ const gerarRelatorioCheckinsPDF = async () => {
             <div class="field col-fixed flex gap-2">
                 <Button label="Buscar" icon="pi pi-search" @click="carregarVisitas" :loading="isLoading" />
                 <Button 
-                    v-if="authStore.user?.is_superuser"
+                    v-if="authStore.canViewRelatoriosCheckins"
                     label="Exportar PDF" 
                     icon="pi pi-file-pdf" 
                     class="p-button-secondary" 

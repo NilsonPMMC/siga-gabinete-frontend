@@ -1,9 +1,31 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { useDuplicatasStore } from '@/stores/duplicatas';
 import PanelMenu from 'primevue/panelmenu';
+import Badge from 'primevue/badge';
 
 const authStore = useAuthStore();
+const duplicatasStore = useDuplicatasStore();
+
+const podeVerDuplicatas = () => (
+  authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+);
+
+onMounted(() => {
+  if (podeVerDuplicatas()) {
+    duplicatasStore.fetchContador();
+  }
+});
+
+watch(
+  () => authStore.isAuthenticated,
+  (autenticado) => {
+    if (autenticado && podeVerDuplicatas()) {
+      duplicatasStore.fetchContador();
+    }
+  }
+);
 
 const rawItems = [
     {
@@ -52,13 +74,18 @@ const rawItems = [
                         label: 'Painel BI',
                         icon: 'pi pi-fw pi-chart-bar',
                         to: '/eventos/bi',
+                    },
+                    {
+                        label: 'Higienização de E-mails',
+                        icon: 'pi pi-fw pi-shield',
+                        to: '/higienizacao-emails',
                     }
                 ]
             },
             {   
                 label: 'Contatos',
                 icon: 'pi pi-fw pi-users',
-                visible: () => authStore.isRecepcao || authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro,
+                visible: () => authStore.isRecepcao || authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro || authStore.isOperadorCrm,
                 items: [
                     { 
                         label: 'Contatos', 
@@ -69,7 +96,8 @@ const rawItems = [
                         label: 'Duplicatas', 
                         icon: 'pi pi-fw pi-copy', 
                         to: '/gestao-duplicatas',
-                        visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
+                        visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro,
+                        showDuplicatasBadge: true,
                     },
                     {
                         label: 'Saneamento de Dados',
@@ -87,15 +115,14 @@ const rawItems = [
             },
             {
                 label: 'Escalas',
-                icon: 'pi pi-fw pi-clock', // Ícone sugestivo de "Turno/Tempo"
-                visible: () => authStore.canViewEscalas, // Usa a lógica que criamos acima
+                icon: 'pi pi-fw pi-clock',
+                visible: () => authStore.canViewEscalas,
                 items: [
                     {
                         label: 'Painel de Plantão',
-                        icon: 'pi pi-fw pi-th-large', // Ícone de Dashboard/Painel
+                        icon: 'pi pi-fw pi-th-large',
                         to: '/escalas'
                     }
-                    // Futuramente, se tiver relatórios específicos, entram aqui
                 ]
             },
             { 
@@ -141,16 +168,10 @@ const rawItems = [
         icon: 'pi pi-fw pi-calendar',
         items: [
              {
-                label: 'Minha Agenda',
-                icon: 'pi pi-fw pi-calendar',
-                to: '/google-agenda',
-                visible: () => authStore.isSecretaria || authStore.user?.is_superuser
-             },
-             {
-                label: 'Agendas da Equipe',
-                icon: 'pi pi-fw pi-calendar',
-                to: '/agendas-compartilhadas',
-                visible: () => authStore.isMembro
+                label: 'Google Calendar',
+                icon: 'pi pi-fw pi-google',
+                to: '/google-calendar',
+                visible: () => authStore.isSecretaria || authStore.user?.is_superuser || authStore.isMembro
              }
         ]
     },
@@ -161,19 +182,13 @@ const rawItems = [
                 label: 'Relatório de Atendimentos', 
                 icon: 'pi pi-fw pi-chart-bar', 
                 to: '/relatorios',
-                visible: () => authStore.user?.is_superuser || authStore.isSecretaria || authStore.isMembro
+                visible: () => authStore.user?.is_superuser || authStore.isSecretaria || authStore.isMembro || authStore.isRecepcao
             },
             { 
                 label: 'Relatório de Agendas', 
                 icon: 'pi pi-fw pi-calendar',
                 to: '/relatorios/agendas',
                 visible: () => authStore.user?.is_superuser || authStore.isSecretaria
-            },
-            { 
-                label: 'Relatório Check-in / Visitas', 
-                icon: 'pi pi-fw pi-user-plus',
-                to: '/checkins',
-                visible: () => authStore.user?.is_superuser
             }
         ]
     }
@@ -208,7 +223,12 @@ const model = computed(() => {
                 active-class="surface-200 text-primary"
              >
                 <span :class="item.icon" class="mr-2" />
-                <span>{{ item.label }}</span>
+                <span class="flex-1">{{ item.label }}</span>
+                <Badge
+                    v-if="item.showDuplicatasBadge && duplicatasStore.totalGrupos > 0"
+                    :value="duplicatasStore.totalGrupos"
+                    severity="danger"
+                />
             </router-link>
 
             <a 

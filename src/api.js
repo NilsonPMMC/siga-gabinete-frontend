@@ -1,9 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth';
-//import router from './router';
+import { isTokenExpired } from '@/utils/authSession';
 
-// Em desenvolvimento (localhost) usa o backend local; em produção usa a URL do servidor
-// Aceita VITE_API_BASE_URL ou VITE_API_URL no .env (ex.: .env.local com VITE_API_URL=http://localhost:8000)
 const envApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
 const baseURL = import.meta.env.DEV
   ? (envApiUrl || 'http://localhost:8000')
@@ -11,56 +9,124 @@ const baseURL = import.meta.env.DEV
 
 const apiClient = axios.create({
   baseURL,
+  paramsSerializer: {
+    indexes: null,
+  },
 });
 
-// Interceptor para adicionar o token de acesso em cada requisição
-apiClient.interceptors.request.use(
-  (config) => {
-    const authStore = useAuthStore();
-    const token = authStore.accessToken;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+const sanitizeParams = (params) => {
+  if (!params || typeof params !== 'object') return params;
+  if (params instanceof URLSearchParams) return params;
+
+  const sanitized = Array.isArray(params) ? [] : {};
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      if (trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') return;
+      sanitized[key] = trimmed;
+      return;
     }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
+    if (Array.isArray(value)) {
+      const filteredArray = value.filter(
+        (item) =>
+          item !== null &&
+          item !== undefined &&
+          !(typeof item === 'string' && ['', 'null', 'undefined'].includes(item.trim().toLowerCase()))
+      );
+      if (filteredArray.length > 0) sanitized[key] = filteredArray;
+      return;
+    }
+    sanitized[key] = value;
+  });
+
+  return sanitized;
+};
+
+const isAuthEndpoint = (url = '') => (
+  url.includes('/api/token/') || url.includes('/api/token/refresh/')
 );
 
-// Interceptor para lidar com a expiração do token
-apiClient.interceptors.response.use(
-  (response) => {
-    return response;
+let refreshInFlight = null;
+
+async function ensureFreshAccessToken(authStore) {
+  if (authStore.accessToken && !isTokenExpired(authStore.accessToken)) {
+    return authStore.accessToken;
+  }
+
+  if (!authStore.refresh || isTokenExpired(authStore.refresh)) {
+    authStore.handleSessionExpired();
+    throw new Error('Sessão expirada');
+  }
+
+  if (!refreshInFlight) {
+    refreshInFlight = authStore.refreshTokenAction()
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+
+  await refreshInFlight;
+  return authStore.accessToken;
+}
+
+apiClient.interceptors.request.use(
+  async (config) => {
+    const authStore = useAuthStore();
+    if (config?.params) {
+      config.params = sanitizeParams(config.params);
+    }
+
+    const requestUrl = config?.url || '';
+    if (config._skipAuthRefresh || isAuthEndpoint(requestUrl)) {
+      return config;
+    }
+
+    if (!authStore.accessToken && !authStore.refresh) {
+      return config;
+    }
+
+    try {
+      const token = await ensureFreshAccessToken(authStore);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {
+      return Promise.reject(new Error('Sessão expirada'));
+    }
+
+    return config;
   },
+  (error) => Promise.reject(error)
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
   async (error) => {
     const originalRequest = error.config;
     const authStore = useAuthStore();
+    const responseStatus = error?.response?.status;
+    const requestUrl = originalRequest?.url || '';
 
-    // Se o erro for 401 e ainda não tentamos renovar o token
-    if (error.response.status === 401 && !originalRequest._retry) {
+    if (responseStatus === 401 && !originalRequest?._retry && !isAuthEndpoint(requestUrl)) {
       originalRequest._retry = true;
 
       try {
-        console.log('Token de acesso expirado. Tentando renovar...');
-        await authStore.refreshTokenAction();
-        // Atualiza o header da requisição original com o novo token
-        originalRequest.headers['Authorization'] = `Bearer ${authStore.accessToken}`;
+        await ensureFreshAccessToken(authStore);
+        originalRequest.headers.Authorization = `Bearer ${authStore.accessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-
-        // --- AQUI ESTÁ A NOVA LÓGICA ---
-        console.log('Token de renovação inválido. Deslogando...');
-
-        // Limpa os dados de autenticação do Pinia e do LocalStorage
-        authStore.logout();
-
-        // Redireciona para a página de login
-        //router.push('/login');
-
+        authStore.handleSessionExpired();
         return Promise.reject(refreshError);
       }
     }
+
+    if (responseStatus === 401 && isAuthEndpoint(requestUrl)) {
+      authStore.handleSessionExpired();
+    }
+
     return Promise.reject(error);
   }
 );

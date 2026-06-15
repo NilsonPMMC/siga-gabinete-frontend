@@ -5,6 +5,7 @@ import apiClient from '@/api';
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 import { useAuthStore } from '@/stores/auth';
+import { baixarRelatorioEspacosPdf } from '@/utils/relatorioEspacos';
 
 // --- INICIALIZAÇÃO ---
 const toast = useToast();
@@ -27,6 +28,10 @@ const solicitanteSelecionado = ref(null);
 const municipesOptions = ref([]);
 const isLoadingMunicipes = ref(false);
 let searchTimeout = null;
+
+const filtroPeriodoRelatorio = ref([]);
+const filtroEspacoRelatorio = ref(null);
+const isGeneratingReport = ref(false);
 
 watch(solicitanteSelecionado, (novoValor) => {
     novaReserva.value.solicitante = novoValor ? novoValor.id : null;
@@ -58,6 +63,12 @@ onMounted(async () => {
     ]);
     espacos.value = espacosRes.data;
     municipesOptions.value = municipesRes.data;
+
+    const today = new Date();
+    filtroPeriodoRelatorio.value = [
+      new Date(today.getFullYear(), today.getMonth(), 1),
+      new Date(today.getFullYear(), today.getMonth() + 1, 0),
+    ];
   } catch (error) {
     console.error("Erro ao carregar dados iniciais:", error);
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os dados.' });
@@ -193,6 +204,35 @@ const salvarReserva = async () => {
 const verAgendaDoEspaco = (espacoId) => {
   router.push(`/espacos/${espacoId}/agenda`);
 };
+
+const gerarRelatorioPdf = async () => {
+  if (!filtroPeriodoRelatorio.value?.[0] || !filtroPeriodoRelatorio.value?.[1]) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Atenção',
+      detail: 'Selecione o período (data início e fim) para o relatório.',
+      life: 4000,
+    });
+    return;
+  }
+  isGeneratingReport.value = true;
+  try {
+    await baixarRelatorioEspacosPdf(apiClient, {
+      datas: filtroPeriodoRelatorio.value,
+      espacoId: filtroEspacoRelatorio.value,
+    });
+    toast.add({ severity: 'success', summary: 'Relatório', detail: 'PDF gerado com sucesso.', life: 3000 });
+  } catch (error) {
+    if (error.message === 'PERIODO_INVALIDO') {
+      toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Período inválido.', life: 3000 });
+    } else {
+      const detail = error.response?.data?.detail || 'Não foi possível gerar o relatório em PDF.';
+      toast.add({ severity: 'error', summary: 'Erro', detail, life: 5000 });
+    }
+  } finally {
+    isGeneratingReport.value = false;
+  }
+};
 </script>
 
 <template>
@@ -204,6 +244,48 @@ const verAgendaDoEspaco = (espacoId) => {
         <Button v-if="authStore.isSuperuser" label="Novo Espaço" icon="pi pi-plus" @click="abrirNovoDialogo" />
       </div>
     </header>
+
+    <Card class="mb-4">
+      <template #title>Relatório por período</template>
+      <template #content>
+        <div class="grid formgrid p-fluid align-items-end gap-3">
+          <div class="field col-12 md:col-4">
+            <label>Período</label>
+            <Calendar
+              v-model="filtroPeriodoRelatorio"
+              selectionMode="range"
+              dateFormat="dd/mm/yy"
+              placeholder="Início — Fim"
+              showIcon
+              appendTo="body"
+            />
+          </div>
+          <div class="field col-12 md:col-4">
+            <label>Espaço (opcional)</label>
+            <Dropdown
+              v-model="filtroEspacoRelatorio"
+              :options="espacos"
+              optionLabel="nome"
+              optionValue="id"
+              placeholder="Todos os espaços"
+              showClear
+            />
+          </div>
+          <div class="field col-12 md:col-4">
+            <Button
+              label="Exportar PDF"
+              icon="pi pi-file-pdf"
+              class="p-button-danger w-full"
+              :loading="isGeneratingReport"
+              @click="gerarRelatorioPdf"
+            />
+          </div>
+        </div>
+        <small class="text-500 block mt-2">
+          Calendário mensal em PDF com reservas diretas e solicitações de agenda agendadas (mesmo layout do relatório Google Agenda).
+        </small>
+      </template>
+    </Card>
 
     <main>
       <DataTable :value="espacos" :loading="isLoading" responsiveLayout="scroll">

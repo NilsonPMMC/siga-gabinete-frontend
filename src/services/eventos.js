@@ -6,8 +6,8 @@ import apiClient from '../api'; // Usamos '../api' e o nome da variável 'apiCli
 // O resto do arquivo permanece o mesmo, apenas trocando 'api' por 'apiClient'
 export default {
     // --- Eventos ---
-    getEventos() {
-        return apiClient.get('/api/eventos/');
+    getEventos(params = {}) {
+        return apiClient.get('/api/eventos/', { params });
     },
 
     getEvento(id) {
@@ -149,8 +149,10 @@ export default {
         // Aponta para a ação customizada 'enviar' que criamos no backend
         return apiClient.post(`/api/comunicacoes/${comunicacaoId}/enviar/`);
     },
-    getDestinatarios(comunicacaoId) {
-        return apiClient.get(`/api/destinatarios/?comunicacao=${comunicacaoId}`);
+    getDestinatarios(comunicacaoId, params = {}) {
+        return apiClient.get('/api/destinatarios/', {
+            params: { comunicacao: comunicacaoId, ...params },
+        });
     },
     
     addDestinatario(payload) {
@@ -162,8 +164,10 @@ export default {
     },
 
     addDestinatariosPorCategoria(comunicacaoId, categoriaId) {
-        // AJUSTE: A URL agora é na rota de 'comunicacoes'
         return apiClient.post(`/api/comunicacoes/${comunicacaoId}/adicionar-por-categoria/`, { categoria_id: categoriaId });
+    },
+    addDestinatariosPorCategorias(comunicacaoId, categoriaIds) {
+        return apiClient.post(`/api/comunicacoes/${comunicacaoId}/adicionar-por-categoria/`, { categoria_ids: categoriaIds });
     },
     getMailingLists() {
         return apiClient.get('/api/mailing-lists/');
@@ -171,8 +175,16 @@ export default {
     addDestinatariosPorMailingList(comunicacaoId, mailingListId) {
         return apiClient.post(`/api/comunicacoes/${comunicacaoId}/adicionar-por-mailing-list/`, { mailing_list_id: mailingListId });
     },
-    getLogsDeEnvio(comunicacaoId) {
-        return apiClient.get(`/api/logs-de-envio/?comunicacao=${comunicacaoId}`);
+    addDestinatariosPorMailingLists(comunicacaoId, mailingListIds) {
+        return apiClient.post(`/api/comunicacoes/${comunicacaoId}/adicionar-por-mailing-list/`, { mailing_list_ids: mailingListIds });
+    },
+    getLogsDeEnvio(comunicacaoId, params = {}) {
+        return apiClient.get('/api/logs-de-envio/', {
+            params: { comunicacao: comunicacaoId, ...params },
+        });
+    },
+    getResumoLogsDeEnvio(comunicacaoId) {
+        return apiClient.get(`/api/logs-de-envio/resumo/?comunicacao=${comunicacaoId}`);
     },
     getRelatorioComunicacaoPdf(comunicacaoId) {
         return apiClient.get(`/api/comunicacoes/${comunicacaoId}/relatorio-pdf/`, {
@@ -237,9 +249,6 @@ export default {
     },
     submitChecklist(token, data) {
         return apiClient.post(`/api/public/checklist/${token}/`, data);
-    },
-    getMailingLists() {
-        return apiClient.get('/api/mailing-lists/');
     },
     getMailingListDetail(id) {
         return apiClient.get(`/api/mailing-lists/${id}/`);

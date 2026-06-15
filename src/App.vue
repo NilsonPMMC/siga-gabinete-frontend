@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { RouterView, RouterLink, useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import apiClient from '@/api';
+import { isPublicAuthRoute } from '@/utils/authSession';
 
 import Button from 'primevue/button';
 import OverlayPanel from 'primevue/overlaypanel';
@@ -18,88 +19,134 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 
-// --- LÓGICA DA SIDEBAR ---
-const sidebarActive = ref(true); // Começa aberta em telas grandes
+const showAuthenticatedShell = computed(() => (
+  authStore.isAuthenticated && !isPublicAuthRoute(route)
+));
+
+const sidebarActive = ref(true);
 const onMenuToggle = () => {
     sidebarActive.value = !sidebarActive.value;
 };
 
-// Fecha a sidebar ao navegar para uma nova página em telas pequenas
 watch(route, () => {
     if (window.innerWidth < 992) {
         sidebarActive.value = false;
     }
 });
 
-// --- LÓGICA DE NOTIFICAÇÕES ---
 const notificacoes = ref([]);
 const op = ref();
 let pollingInterval = null;
-let notificacoesAnteriores = 0; // Guarda a contagem anterior
+let notificacoesAnteriores = 0;
 
 const fetchNotificacoes = async () => {
-  if (!authStore.isAuthenticated) return;
-  try {
-    const response = await apiClient.get('/api/notificacoes/');
-    notificacoes.value = response.data;
+  if (!authStore.isAuthenticated) return;
+  try {
+    const response = await apiClient.get('/api/notificacoes/');
+    notificacoes.value = response.data;
 
-    // SE A NOVA CONTAGEM É MAIOR QUE A ANTERIOR, MOSTRA O ALERTA!
-    if (notificacoes.value.length > notificacoesAnteriores) {
-        toast.add({ severity: 'info', summary: 'Nova Notificação', detail: 'Você tem um novo item para verificar.', sticky: true });
-    }
-    notificacoesAnteriores = notificacoes.value.length; // Atualiza a contagem
-
-  } catch (error) {
-    console.error('Erro ao buscar notificações:', error);
-  }
+    if (notificacoes.value.length > notificacoesAnteriores) {
+        toast.add({ severity: 'info', summary: 'Nova Notificação', detail: 'Você tem um novo item para verificar.', sticky: true });
+    }
+    notificacoesAnteriores = notificacoes.value.length;
+  } catch (error) {
+    if (error?.message !== 'Sessão expirada') {
+      console.error('Erro ao buscar notificações:', error);
+    }
+  }
 };
 
 const toggleNotificacoes = (event) => {
-  fetchNotificacoes(); // Busca as notificações mais recentes ao abrir
-  op.value.toggle(event);
+  fetchNotificacoes();
+  op.value.toggle(event);
 };
 
 const handleNotificacaoClick = async (notificacao) => {
-  op.value.hide(); // Esconde o painel
-  router.push(notificacao.link); // Navega para o link
-  try {
-    // Marca a notificação como lida na API
-    await apiClient.post(`/api/notificacoes/${notificacao.id}/marcar-lida/`);
-    // Remove da lista local para o contador sumir
-    notificacoes.value = notificacoes.value.filter(n => n.id !== notificacao.id);
-  } catch (error) {
-    console.error('Erro ao marcar notificação como lida:', error);
-  }
+  op.value.hide();
+  router.push(notificacao.link);
+  try {
+    await apiClient.post(`/api/notificacoes/${notificacao.id}/marcar-lida/`);
+    notificacoes.value = notificacoes.value.filter(n => n.id !== notificacao.id);
+  } catch (error) {
+    if (error?.message !== 'Sessão expirada') {
+      console.error('Erro ao marcar notificação como lida:', error);
+    }
+  }
 };
 
-// Inicia o polling quando o componente é montado
+const iniciarPollingNotificacoes = () => {
+  if (pollingInterval) return;
+  fetchNotificacoes();
+  pollingInterval = setInterval(fetchNotificacoes, 60000);
+};
+
+const pararPollingNotificacoes = () => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+  notificacoes.value = [];
+  notificacoesAnteriores = 0;
+};
+
+const validarSessaoAtual = async () => {
+  if (isPublicAuthRoute(route)) return;
+  if (!route.meta.requiresAuth) return;
+
+  const ok = await authStore.ensureActiveSession();
+  if (!ok) {
+    authStore.handleSessionExpired();
+  }
+};
+
+watch(
+  () => showAuthenticatedShell.value,
+  (visible, wasVisible) => {
+    if (visible) {
+      iniciarPollingNotificacoes();
+      return;
+    }
+
+    pararPollingNotificacoes();
+
+    if (wasVisible && route.meta.requiresAuth) {
+      authStore.handleSessionExpired();
+    }
+  },
+  { immediate: true }
+);
+
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    validarSessaoAtual();
+  }
+};
+
 onMounted(() => {
-  fetchNotificacoes();
-  pollingInterval = setInterval(fetchNotificacoes, 60000); // Verifica a cada 60 segundos
+  validarSessaoAtual();
+  document.addEventListener('visibilitychange', onVisibilityChange);
 });
 
-// Limpa o polling quando o componente é desmontado para evitar vazamento de memória
 onUnmounted(() => {
-  if (pollingInterval) {
-    clearInterval(pollingInterval);
-  }
+  pararPollingNotificacoes();
+  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 
 const termoBuscaGlobal = ref('');
 
 const executarBusca = () => {
-    if (termoBuscaGlobal.value.trim()) {
-        router.push({ name: 'busca', query: { q: termoBuscaGlobal.value } });
-        termoBuscaGlobal.value = '';
-    }
+    if (termoBuscaGlobal.value.trim()) {
+        router.push({ name: 'busca', query: { q: termoBuscaGlobal.value } });
+        termoBuscaGlobal.value = '';
+    }
 };
 </script>
 
 <template>
     <Toast />
-    
-    <div v-if="authStore.isAuthenticated" :class="['layout-wrapper', { 'layout-sidebar-active': sidebarActive }]">
-        
+
+    <div v-if="showAuthenticatedShell" :class="['layout-wrapper', { 'layout-sidebar-active': sidebarActive }]">
+
         <header class="main-header">
             <div class="logo-area">
                 <Button icon="pi pi-bars" text rounded @click="onMenuToggle" class="mr-2" />
@@ -126,7 +173,7 @@ const executarBusca = () => {
                     <Button icon="pi pi-cog" text rounded severity="secondary" title="Configurações" />
                 </RouterLink>
 
-                <Button icon="pi pi-sign-out" text rounded severity="secondary" @click="authStore.logout()" title="Sair" />
+                <Button icon="pi pi-sign-out" text rounded severity="secondary" @click="authStore.logout(true, 'logged_out')" title="Sair" />
                 </div>
             </div>
         </header>
@@ -153,16 +200,15 @@ const executarBusca = () => {
             </div>
         </OverlayPanel>
     </div>
-    
-    <div v-else>
+
+    <div v-else class="public-shell">
         <RouterView />
     </div>
 </template>
 
 <style>
-/* Estilos Globais para a transição suave */
 :root {
-    --sidebar-width: 280px; /* Largura da sidebar */
+    --sidebar-width: 280px;
 }
 
 body {
@@ -170,7 +216,10 @@ body {
     color: var(--text-color);
 }
 
-/* --- A MÁGICA DO EFEITO "PUSH" --- */
+.public-shell {
+    min-height: 100vh;
+}
+
 .layout-wrapper {
     transition: margin-left 0.3s;
 }
@@ -184,30 +233,27 @@ body {
     background: var(--surface-card);
     border-right: 1px solid var(--surface-border);
     transition: transform 0.3s;
-    transform: translateX(-100%); /* Começa escondida para fora da tela */
-    z-index: 999; /* Fica acima do conteúdo, mas abaixo do header */
-    padding-top: 5rem; /* Espaço para o header fixo */
+    transform: translateX(-100%);
+    z-index: 999;
+    padding-top: 5rem;
 }
 
 .layout-main-content {
     padding: 2rem;
     transition: margin-left 0.3s;
-    margin-left: 0; /* Por padrão, o conteúdo ocupa tudo */
+    margin-left: 0;
 }
 
-/* Quando a sidebar está ATIVA */
 .layout-wrapper.layout-sidebar-active .layout-sidebar {
-    transform: translateX(0); /* Move a sidebar para dentro da tela */
+    transform: translateX(0);
 }
 
-/* Em telas grandes, a sidebar empurra o conteúdo */
 @media (min-width: 992px) {
     .layout-wrapper.layout-sidebar-active .layout-main-content {
-        margin-left: var(--sidebar-width); /* Empurra o conteúdo */
+        margin-left: var(--sidebar-width);
     }
 }
 
-/* Estilos da Barra do Topo (Header) */
 .main-header {
     position: fixed;
     top: 0;

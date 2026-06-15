@@ -1,24 +1,33 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import apiClient from '@/api';
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 import InputSwitch from 'primevue/inputswitch';
 import { buscarComInteligencia } from '@/services/atendimentos';
+import { unwrapPaginatedResponse } from '@/utils/paginatedApi';
 
 const authStore = useAuthStore();
+const route = useRoute();
 const router = useRouter();
 const confirm = useConfirm();
 const toast = useToast();
 
 const isLoading = ref(true);
-const todosAtendimentos = ref([]);
 const atendimentosNaTela = ref([]);
+const totalRecords = ref(0);
+const first = ref(0);
+const page = ref(1);
+const pageSize = ref(25);
+const ordering = ref('-data_criacao');
 const filtroTexto = ref('');
 const filtroStatus = ref(null);
 const filtroConta = ref(null);
+const filtroAssunto = ref(null);
+const filtroSla = ref(null);
+const assuntosOptions = ref([]);
 const usaBuscaIA = ref(false);
 const resultadosBuscaIA = ref([]);
 const contasOptions = ref([]);
@@ -30,24 +39,82 @@ const statusOptions = ref([
     { label: 'Concluído', value: 'CONCLUIDO' },
     { label: 'Arquivado', value: 'ARQUIVADO' },
 ]);
+const slaOptions = ref([
+    { label: 'Todos', value: null },
+    { label: 'No prazo', value: 'NO_PRAZO' },
+    { label: 'Em risco', value: 'EM_RISCO' },
+    { label: 'Vencido', value: 'VENCIDO' },
+]);
 
 onMounted(async () => {
     if (!authStore.isAuthenticated) return;
+    if (route.query.assunto_codigo === 'visita_recepcao' || route.query.preset === 'visita') {
+        router.replace({ path: '/atendimentos' });
+        return;
+    }
+    try {
+        const [contasRes, assuntosRes] = await Promise.all([
+            apiClient.get('/api/contas/'),
+            apiClient.get('/api/assuntos-atendimento/'),
+        ]);
+        contasOptions.value = contasRes.data.map(conta => ({ label: conta.nome, value: conta.id }));
+        assuntosOptions.value = assuntosRes.data.map((a) => ({ label: a.nome, value: a.id, codigo: a.codigo }));
+
+        const q = route.query;
+        if (q.assunto_id) {
+            filtroAssunto.value = Number(q.assunto_id) || q.assunto_id;
+        } else if (q.assunto_codigo) {
+            const match = assuntosRes.data.find((a) => a.codigo === q.assunto_codigo);
+            if (match) filtroAssunto.value = match.id;
+        }
+        await carregarAtendimentos();
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os atendimentos.' });
+    }
+});
+
+const montarParamsAtendimentos = () => {
+    const params = {
+        page: page.value,
+        page_size: pageSize.value,
+        ordering: ordering.value,
+    };
+    if (filtroTexto.value) params.q = filtroTexto.value;
+    if (filtroStatus.value) params.status = filtroStatus.value;
+    if (filtroConta.value) params.conta_id = filtroConta.value;
+    if (filtroAssunto.value) params.assunto_id = filtroAssunto.value;
+    if (filtroSla.value) params.sla_status = filtroSla.value;
+    return params;
+};
+
+const carregarAtendimentos = async () => {
     isLoading.value = true;
     try {
-        const [atendimentosRes, contasRes] = await Promise.all([
-            apiClient.get('/api/atendimentos/'),
-            apiClient.get('/api/contas/')
-        ]);
-        todosAtendimentos.value = atendimentosRes.data;
-        atendimentosNaTela.value = atendimentosRes.data;
-        contasOptions.value = contasRes.data.map(conta => ({ label: conta.nome, value: conta.id }));
+        const response = await apiClient.get('/api/atendimentos/', { params: montarParamsAtendimentos() });
+        const { results, count } = unwrapPaginatedResponse(response);
+        atendimentosNaTela.value = results;
+        totalRecords.value = count;
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível carregar os atendimentos.' });
     } finally {
         isLoading.value = false;
     }
-});
+};
+
+const onPage = async (event) => {
+    first.value = event.first;
+    pageSize.value = event.rows;
+    page.value = Math.floor(event.first / event.rows) + 1;
+    await carregarAtendimentos();
+};
+
+const onSort = async (event) => {
+    const prefix = event.sortOrder === -1 ? '-' : '';
+    ordering.value = `${prefix}${event.sortField}`;
+    first.value = 0;
+    page.value = 1;
+    await carregarAtendimentos();
+};
 
 const getStatusSeverity = (status) => {
     const map = { 
@@ -60,30 +127,35 @@ const getStatusSeverity = (status) => {
     return map[status] || 'secondary';
 };
 
+const getSlaSeverity = (sla) => {
+    const map = {
+        'NO_PRAZO': 'success',
+        'EM_RISCO': 'warning',
+        'VENCIDO': 'danger',
+    };
+    return map[sla] || 'secondary';
+};
+
 const aplicarFiltros = async () => {
-    isLoading.value = true;
     resultadosBuscaIA.value = [];
+    first.value = 0;
+    page.value = 1;
     try {
         if (usaBuscaIA.value && filtroTexto.value.trim()) {
+            isLoading.value = true;
             const dados = await buscarComInteligencia(filtroTexto.value.trim(), {
                 conta_id: filtroConta.value || undefined
             });
             resultadosBuscaIA.value = dados || [];
             atendimentosNaTela.value = [];
+            totalRecords.value = 0;
+            isLoading.value = false;
         } else {
-            const params = {};
-            if (filtroTexto.value) params.q = filtroTexto.value;
-            if (filtroStatus.value) params.status = filtroStatus.value;
-            if (filtroConta.value) params.conta_id = filtroConta.value;
-
-            const response = await apiClient.get('/api/atendimentos/', { params });
-            atendimentosNaTela.value = response.data;
-            todosAtendimentos.value = response.data;
+            await carregarAtendimentos();
         }
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível aplicar os filtros.' });
-    } finally {
         isLoading.value = false;
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível aplicar os filtros.' });
     }
 };
 
@@ -91,18 +163,13 @@ const limparFiltros = async () => {
     filtroTexto.value = '';
     filtroStatus.value = null;
     filtroConta.value = null;
+    filtroAssunto.value = null;
+    filtroSla.value = null;
     usaBuscaIA.value = false;
     resultadosBuscaIA.value = [];
-    isLoading.value = true;
-    try {
-        const response = await apiClient.get('/api/atendimentos/');
-        todosAtendimentos.value = response.data;
-        atendimentosNaTela.value = response.data;
-    } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível recarregar os atendimentos.' });
-    } finally {
-        isLoading.value = false;
-    }
+    first.value = 0;
+    page.value = 1;
+    await carregarAtendimentos();
 };
 
 const verDetalhes = (id) => router.push(`/atendimentos/${id}`);
@@ -117,10 +184,9 @@ const confirmarExclusao = (atendimento) => {
         acceptClassName: 'p-button-danger',
         accept: () => {
             apiClient.delete(`/api/atendimentos/${atendimento.id}/`)
-                .then(() => {
-                    todosAtendimentos.value = todosAtendimentos.value.filter(a => a.id !== atendimento.id);
-                    atendimentosNaTela.value = atendimentosNaTela.value.filter(a => a.id !== atendimento.id);
+                .then(async () => {
                     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Atendimento excluído!', life: 3000 });
+                    await carregarAtendimentos();
                 })
                 .catch(error => {
                     toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível excluir o atendimento.', life: 4000 });
@@ -149,9 +215,9 @@ const rowClassIA = (data) => (data.score_match ?? 0) >= 80 ? 'ia-high-relevance'
       <template #content>
         <div class="grid formgrid p-fluid align-items-end">
           <div class="field col-12 md:col-5">
-            <label for="filtroTexto">Buscar por Protocolo, Título, Nome do Munícipe ou Nome Fantasia</label>
+            <label for="filtroTexto">Buscar por protocolo, título, munícipe (nome, CPF, matrícula, perfil)</label>
             <div class="flex align-items-center gap-3 flex-wrap">
-              <InputText id="filtroTexto" v-model="filtroTexto" placeholder="Digite aqui..." @keyup.enter="aplicarFiltros" class="flex-1 min-w-0" />
+              <InputText id="filtroTexto" v-model="filtroTexto" placeholder="Ex.: protocolo, nilson, 12345678901..." @keyup.enter="aplicarFiltros" class="flex-1 min-w-0" />
               <div class="flex align-items-center gap-2">
                 <InputSwitch id="usaBuscaIA" v-model="usaBuscaIA" />
                 <label for="usaBuscaIA" class="cursor-pointer flex align-items-center gap-1">
@@ -170,6 +236,14 @@ const rowClassIA = (data) => (data.score_match ?? 0) >= 80 ? 'ia-high-relevance'
             <Dropdown id="filtroConta" v-model="filtroConta" :options="contasOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros" />
             <small v-if="usaBuscaIA" class="p-text-secondary block mt-1">Na busca IA, limita ao gabinete selecionado</small>
           </div>
+          <div class="field col-12 md:col-3">
+            <label for="filtroAssunto">Assunto</label>
+            <Dropdown id="filtroAssunto" v-model="filtroAssunto" :options="assuntosOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros" />
+          </div>
+          <div class="field col-12 md:col-3">
+            <label for="filtroSla">SLA</label>
+            <Dropdown id="filtroSla" v-model="filtroSla" :options="slaOptions" optionLabel="label" optionValue="value" placeholder="Todos" showClear @change="aplicarFiltros" />
+          </div>
           <div class="field col-12 md:col-4 flex justify-content-start gap-2">
             <Button label="Filtrar" icon="pi pi-filter" @click="aplicarFiltros" />
             <Button label="Limpar" icon="pi pi-times" @click="limparFiltros" class="p-button-secondary" />
@@ -179,12 +253,22 @@ const rowClassIA = (data) => (data.score_match ?? 0) >= 80 ? 'ia-high-relevance'
     </Card>
 
     <main>
+      <div v-if="!resultadosBuscaIA.length" class="mb-2 text-sm text-color-secondary">
+        Exibindo {{ atendimentosNaTela.length }} de {{ totalRecords }} atendimento(s).
+      </div>
+
       <DataTable
         v-if="!resultadosBuscaIA.length"
         :value="atendimentosNaTela"
         :loading="isLoading"
         paginator
-        :rows="15"
+        lazy
+        :rows="pageSize"
+        :first="first"
+        :totalRecords="totalRecords"
+        :rowsPerPageOptions="[10, 25, 50, 100]"
+        @page="onPage"
+        @sort="onSort"
         responsiveLayout="scroll"
       >
         <Column field="protocolo" header="Protocolo" sortable></Column>
@@ -196,7 +280,13 @@ const rowClassIA = (data) => (data.score_match ?? 0) >= 80 ? 'ia-high-relevance'
             </div>
           </template>
         </Column>
-        <Column field="titulo" header="Título" style="width: 40%"></Column>
+        <Column field="assunto_nome" header="Assunto" sortable style="min-width: 10rem">
+          <template #body="slotProps">
+            <Tag v-if="slotProps.data.assunto_nome" :value="slotProps.data.assunto_nome" severity="secondary" />
+            <span v-else class="text-color-secondary">—</span>
+          </template>
+        </Column>
+        <Column field="titulo" header="Título" style="width: 35%"></Column>
         <Column field="nome_conta" header="Gabinete" sortable v-if="authStore.isRecepcao || authStore.user?.is_superuser"></Column>
         <Column field="nome_municipe" header="Munícipe" sortable>
           <template #body="slotProps">
@@ -208,6 +298,16 @@ const rowClassIA = (data) => (data.score_match ?? 0) >= 80 ? 'ia-high-relevance'
         <Column field="status" header="Status" sortable>
           <template #body="slotProps">
             <Tag :value="slotProps.data.status.replace(/_/g, ' ')" :severity="getStatusSeverity(slotProps.data.status)" />
+          </template>
+        </Column>
+        <Column field="sla_status" header="SLA" sortable>
+          <template #body="slotProps">
+            <Tag
+              v-if="slotProps.data.sla_status_display"
+              :value="slotProps.data.sla_status_display"
+              :severity="getSlaSeverity(slotProps.data.sla_status)"
+            />
+            <span v-else class="text-color-secondary">—</span>
           </template>
         </Column>
         <Column header="Ações" style="width: 8rem; text-align: center; display:flex; justify-content: center;">

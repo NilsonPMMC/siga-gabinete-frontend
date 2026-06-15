@@ -49,7 +49,7 @@
                     <Column field="instituicao_orgao" header="Instituição/Órgão"></Column>
                     <Column field="data_registro" header="Data do Registro" :sortable="true">
                         <template #body="slotProps">
-                            {{ new Date(slotProps.data.data_registro).toLocaleString('pt-BR') }}
+                            {{ formatarDataRegistro(slotProps.data.data_registro) }}
                         </template>
                     </Column>
                     <Column header="Ações" style="width: 10rem">
@@ -123,6 +123,17 @@ const presentesFiltrados = computed(() => {
         p.nome_completo.toLowerCase().includes(filtroNome.value.toLowerCase())
     );
 });
+
+const formatarDataRegistro = (valor) => {
+    if (!valor) return 'N/D';
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) return 'N/D';
+    return new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        dateStyle: 'short',
+        timeStyle: 'medium',
+    }).format(data);
+};
 
 const carregarDados = async () => {
     if (!authStore.isAuthenticated) {

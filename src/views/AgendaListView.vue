@@ -5,6 +5,7 @@ import apiClient from '@/api';
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 import { useAuthStore } from '@/stores/auth';
+import GoogleEventModal from '@/components/google-calendar/GoogleEventModal.vue';
 
 // Inicialização das ferramentas e do estado do componente
 const solicitacoes = ref([]);
@@ -17,6 +18,8 @@ const authStore = useAuthStore();
 const todasSolicitacoes = ref([]); // Guarda a lista completa vinda da API
 const filtroTexto = ref('');
 const filtroStatus = ref(null);
+const showGoogleEventModal = ref(false);
+const selectedSolicitacao = ref(null);
 const statusOptions = ref([
     { label: 'Solicitado', value: 'SOLICITADO' },
     { label: 'Em Análise', value: 'EM_ANALISE' },
@@ -25,7 +28,8 @@ const statusOptions = ref([
     { label: 'Negado', value: 'NEGADO' },
     { label: 'Cancelado', value: 'CANCELADO' },
     { label: 'Reagendar', value: 'REAGENDAR' },
-    { label: 'Encaminhado', value: 'ENCAMINHADO' }
+    { label: 'Encaminhado', value: 'ENCAMINHADO' },
+    { label: 'Concluido', value: 'CONCLUIDO' }
 ]);
 
 // --- LÓGICA DO MODAL REMOVIDA ---
@@ -73,7 +77,7 @@ onMounted(async () => {
 
 // Funções de filtro (Mantidas)
 const getStatusSeverity = (status) => {
-  const map = { 'SOLICITADO': 'info', 'EM_ANALISE': 'warning', 'AGENDADO': 'success', 'AGENDAR': 'warning', 'NEGADO': 'danger', 'CANCELADO': 'secondary', 'REAGENDAR': 'warning', 'ENCAMINHADO': 'warning' };
+  const map = { 'SOLICITADO': 'info', 'EM_ANALISE': 'warning', 'AGENDADO': 'success', 'AGENDAR': 'warning', 'NEGADO': 'danger', 'CANCELADO': 'secondary', 'REAGENDAR': 'warning', 'ENCAMINHADO': 'warning', 'CONCLUIDO': 'success' };
   return map[status] || 'contrast';
 };
 
@@ -115,22 +119,28 @@ const irParaNovaSolicitacao = () => {
   router.push('/agendas/novo');
 };
 
-// Funções do Google Agenda (Mantidas)
-const criarEventoGoogle = async (solicitacao) => {
-    const originalStatus = solicitacao.status;
-    solicitacoes.value = solicitacoes.value.map(s => s.id === solicitacao.id ? { ...s, status: 'ENVIANDO' } : s);
-    try {
-        const response = await apiClient.post(`/api/solicitacoes-agenda/${solicitacao.id}/criar-evento-google/`);
-        toast.add({ severity: 'success', summary: 'Sucesso!', detail: response.data.detail, life: 4000 });
-        const index = todasSolicitacoes.value.findIndex(s => s.id === solicitacao.id);
-        if (index !== -1) {
-            todasSolicitacoes.value[index].link_google_agenda = response.data.googleEventUrl;
-            todasSolicitacoes.value[index].status = originalStatus;
+// Funções do Google Agenda (Atualizadas para Múltiplas Contas)
+const criarEventoGoogle = (solicitacao) => {
+    selectedSolicitacao.value = solicitacao;
+    showGoogleEventModal.value = true;
+};
+
+const onEventCreated = async (eventData) => {
+    if (selectedSolicitacao.value) {
+        toast.add({ 
+            severity: 'success', 
+            summary: 'Evento Criado!', 
+            detail: `Evento "${eventData.titulo}" criado no Google Calendar`,
+            life: 5000 
+        });
+        
+        // Atualizar a solicitação com o link do Google
+        const index = todasSolicitacoes.value.findIndex(s => s.id === selectedSolicitacao.value.id);
+        if (index !== -1 && eventData.link_google) {
+            todasSolicitacoes.value[index].link_google_agenda = eventData.link_google;
         }
+        
         aplicarFiltros();
-    } catch (error) {
-        toast.add({ severity: 'error', summary: 'Erro de Integração', detail: error.response?.data?.detail || 'Não foi possível criar o evento.', life: 5000 });
-        solicitacoes.value = solicitacoes.value.map(s => s.id === solicitacao.id ? { ...s, status: originalStatus } : s);
     }
 };
 
@@ -228,6 +238,19 @@ const removerLinkGoogle = (solicitacao) => {
       </DataTable>
     </main>
 
+    <!-- Modal de Criação de Evento Google -->
+    <GoogleEventModal
+      v-model="showGoogleEventModal"
+      :evento="selectedSolicitacao ? {
+        titulo: selectedSolicitacao.titulo || 'Reunião',
+        descricao: selectedSolicitacao.observacoes || '',
+        data_inicio: selectedSolicitacao.data_inicio ? new Date(selectedSolicitacao.data_inicio) : null,
+        data_fim: selectedSolicitacao.data_fim ? new Date(selectedSolicitacao.data_fim) : null,
+        localizacao: selectedSolicitacao.local || ''
+      } : null"
+      @event-created="onEventCreated"
+    />
+    
     <Toast />
     <ConfirmDialog />
   </div>

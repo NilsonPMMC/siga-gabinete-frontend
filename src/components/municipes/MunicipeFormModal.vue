@@ -33,8 +33,8 @@
                     severity="primary"
                     class="absolute bottom-0 right-0 shadow-2"
                     style="transform: translate(25%, 25%)"
-                    @click="fotoCaptureComponent.abrirCamera()"
-                    v-tooltip="'Alterar Foto'"
+                    @click="fotoCaptureComponent?.abrirCamera()"
+                    v-tooltip="'Capturar com câmera'"
                 />
             </div>
 
@@ -43,7 +43,7 @@
                 @foto-salva="onFotoCapturada" 
             />
             
-            <small class="text-500" v-if="!fotoPreviewUrl">Toque no ícone de câmera para adicionar uma foto.</small>
+            <small class="text-500 text-center" v-if="!fotoPreviewUrl">Use o ícone da câmera para capturar pela webcam (ou escolher arquivo).</small>
         </div>
 
         <div class="col-12 md:col-9 mt-3">
@@ -88,7 +88,19 @@
             <label class="font-bold">Vínculo Profissional (Cargo / Órgão)</label>
             <Button label="Adicionar vínculo" icon="pi pi-plus" text size="small" @click="adicionarPerfil" />
         </div>
-        <div v-for="(perfil, idx) in municipe.perfis" :key="'perfil-'+idx" class="surface-100 p-3 mb-3 border-round">
+        <Message
+          v-if="temDuplicataNoFormulario"
+          severity="warn"
+          :closable="false"
+          class="mb-3"
+        >
+          Existem vínculos com o mesmo cargo e gabinete. Corrija antes de salvar.
+        </Message>
+        <div
+          v-for="(perfil, idx) in perfisVisiveis"
+          :key="perfil.id || `perfil-${idx}`"
+          :class="['surface-100 p-3 mb-3 border-round', { 'perfil-duplicado': perfilEstaDuplicado(perfil, perfisVisiveis) }]"
+        >
             <div class="grid">
                 <div class="field col-12 md:col-2" v-if="contasParaPerfil.length">
                     <label>Gabinete</label>
@@ -107,14 +119,14 @@
                     <Dropdown v-model="perfil.categoria" :options="categoriasContato" optionLabel="nome" optionValue="id" placeholder="Selecione..." class="w-full" />
                 </div>
                 <div class="field col-12 md:col-1 flex align-items-end">
-                    <Button icon="pi pi-trash" text severity="danger" @click="removerPerfil(idx)" v-tooltip="'Remover perfil'" />
+                    <Button icon="pi pi-trash" text severity="danger" @click="removerPerfil(perfil)" v-tooltip="'Remover perfil'" />
                 </div>
             </div>
             <div class="field col-12 mt-2" v-if="!contasParaPerfil.length">
                 <small class="text-500">Salve o contato e vincule a um gabinete (acima) para adicionar perfis (cargo/órgão).</small>
             </div>
         </div>
-        <small v-if="!municipe.perfis?.length" class="text-500">Nenhum vínculo. Use "Adicionar vínculo" para cadastrar cargo/órgão por gabinete.</small>
+        <small v-if="!perfisVisiveis?.length" class="text-500">Nenhum vínculo visível para sua(s) conta(s).</small>
     </div>
 
       <Divider align="center" type="dashed">
@@ -197,6 +209,7 @@ import apiClient from '@/api';
 import Avatar from 'primevue/avatar';
 import FotoCapture from '@/components/common/FotoCapture.vue';
 import avatarPlaceholderUrl from '@/public/images/avatar-placeholder.png';
+import { perfilEstaDuplicado, validarPerfisSemDuplicata } from '@/utils/perfilMunicipe';
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -247,6 +260,16 @@ const contasParaPerfil = computed(() => {
   if (contas.value?.length) return contas.value;
   return Array.isArray(municipe.value.contas) ? municipe.value.contas : [];
 });
+const contasUsuarioIds = computed(() => new Set(authStore.userContas || []));
+const perfisVisiveis = computed(() => {
+  const perfis = Array.isArray(municipe.value.perfis) ? municipe.value.perfis : [];
+  if (authStore.isSuperuser) return perfis;
+  const ids = contasUsuarioIds.value;
+  return perfis.filter((p) => ids.has(p?.conta?.id ?? p?.conta));
+});
+const temDuplicataNoFormulario = computed(() =>
+  validarPerfisSemDuplicata(perfisVisiveis.value).length > 0
+);
 
 const isEditMode = computed(() => !!props.municipeId);
 const pageTitle = computed(() => isEditMode.value ? 'Editar Contato' : 'Novo Contato Rápido');
@@ -358,6 +381,12 @@ const salvarMunicipe = async () => {
     }
     if (!municipe.value.nome_completo) {
         toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Informe o Nome.', life: 4000 });
+        return;
+    }
+
+    const errosDuplicata = validarPerfisSemDuplicata(perfisVisiveis.value);
+    if (errosDuplicata.length) {
+        toast.add({ severity: 'warn', summary: 'Vínculos duplicados', detail: errosDuplicata.join(' '), life: 5000 });
         return;
     }
 
@@ -475,8 +504,9 @@ function adicionarPerfil() {
     ativo: true
   });
 }
-function removerPerfil(i) {
-  municipe.value.perfis.splice(i, 1);
+function removerPerfil(perfil) {
+  const idx = (municipe.value.perfis || []).indexOf(perfil);
+  if (idx >= 0) municipe.value.perfis.splice(idx, 1);
 }
 
 const buscarCep = async () => {
@@ -499,3 +529,10 @@ const formatarTelefone = (index) => {
     else if (numero.length === 10) municipe.value.telefones[index].numero = `(${numero.substring(0, 2)}) ${numero.substring(2, 6)}-${numero.substring(6)}`;
 };
 </script>
+
+<style scoped>
+.perfil-duplicado {
+  border: 1px solid var(--p-orange-300);
+  background: rgba(251, 146, 60, 0.08);
+}
+</style>

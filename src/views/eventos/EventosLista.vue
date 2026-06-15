@@ -8,7 +8,7 @@
         </div>
         </header>
         <Card class="mb-4">
-            <template #title>Relatório de Agenda</template>
+            <template #title>Relatório de Eventos</template>
             <template #content>
                 <div class="grid formgrid p-fluid align-items-end">
                     <div class="field col-12 md:col-6">
@@ -43,7 +43,117 @@
                         </template>
                     </Toolbar>
 
-                    <FullCalendar v-if="!loading" :options="calendarOptions" />
+                    <div class="flex flex-column lg:flex-row lg:align-items-end gap-3 mb-4">
+                        <div class="field mb-0 flex-1" style="max-width: 32rem;">
+                            <label for="busca-evento-nome" class="block text-600 text-sm mb-1">Buscar evento (qualquer data)</label>
+                            <div class="p-inputgroup">
+                                <span class="p-inputgroup-addon"><i class="pi pi-search" aria-hidden="true" /></span>
+                                <InputText
+                                    id="busca-evento-nome"
+                                    v-model="filtroBuscaEvento"
+                                    type="search"
+                                    class="w-full"
+                                    placeholder="Nome do evento…"
+                                    autocomplete="off"
+                                    @keyup.enter="executarBuscaEventos"
+                                />
+                                <Button
+                                    type="button"
+                                    label="Buscar"
+                                    icon="pi pi-list"
+                                    :loading="loadingBusca"
+                                    @click="executarBuscaEventos"
+                                    v-tooltip.top="'Mostra todos os eventos que batem com o nome (em qualquer data). O calendário continua na semana atual.'"
+                                />
+                            </div>
+                        </div>
+                        <div class="field mb-0 flex-1" style="max-width: 22rem;">
+                            <label for="filtro-status-eventos" class="block text-600 text-sm mb-1">Status</label>
+                            <MultiSelect
+                                id="filtro-status-eventos"
+                                v-model="filtroStatusEventos"
+                                :options="statusFiltroCalendarioOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                placeholder="Todos os status"
+                                display="chip"
+                                class="w-full"
+                                :showClear="true"
+                                :maxSelectedLabels="2"
+                                selectedItemsLabel="{0} status"
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            label="Limpar filtros"
+                            icon="pi pi-filter-slash"
+                            class="p-button-text align-self-start lg:align-self-end"
+                            :disabled="!filtroBuscaEvento?.trim() && !filtroStatusEventos?.length"
+                            @click="limparFiltrosEventos"
+                        />
+                    </div>
+
+                    <Dialog
+                        v-model:visible="dialogResultadosBuscaVisivel"
+                        header="Resultados da busca"
+                        :modal="true"
+                        :dismissableMask="true"
+                        :style="{ width: 'min(96vw, 760px)' }"
+                        :breakpoints="{ '768px': '95vw' }"
+                    >
+                        <p v-if="termoBuscaUtilizado" class="text-sm text-color-secondary mt-0 mb-3">
+                            Termo: <strong>{{ termoBuscaUtilizado }}</strong>
+                            <span v-if="filtroStatusEventos?.length" class="ml-2">
+                                · Filtrando por status selecionado no calendário
+                            </span>
+                        </p>
+                        <DataTable
+                            :value="resultadosBusca"
+                            :loading="loadingBusca"
+                            responsiveLayout="scroll"
+                            stripedRows
+                            sortField="data_evento"
+                            :sortOrder="1"
+                            scrollHeight="420px"
+                        >
+                            <template #empty>
+                                <span v-if="!loadingBusca">Nenhum evento encontrado.</span>
+                            </template>
+                            <Column field="data_evento" header="Dia" sortable :sortField="'data_evento'">
+                                <template #body="{ data }">
+                                    {{ formatarDiaEvento(data.data_evento) }}
+                                </template>
+                            </Column>
+                            <Column header="Hora" sortable :sortField="'data_evento'">
+                                <template #body="{ data }">
+                                    {{ formatarHoraEvento(data.data_evento) }}
+                                </template>
+                            </Column>
+                            <Column field="nome" header="Evento" sortable style="min-width: 12rem" />
+                            <Column field="status" header="Status" sortable style="width: 9rem">
+                                <template #body="{ data }">
+                                    <Tag :value="labelStatus(data.status)" :severity="severidadeStatus(data.status)" />
+                                </template>
+                            </Column>
+                            <Column header="" style="width: 8rem">
+                                <template #body="{ data }">
+                                    <Button
+                                        type="button"
+                                        label="Abrir"
+                                        icon="pi pi-pencil"
+                                        size="small"
+                                        outlined
+                                        @click="abrirEventoAPartirDaBusca(data)"
+                                    />
+                                </template>
+                            </Column>
+                        </DataTable>
+                        <template #footer>
+                            <Button label="Fechar" icon="pi pi-times" text @click="dialogResultadosBuscaVisivel = false" />
+                        </template>
+                    </Dialog>
+
+                    <FullCalendar ref="fullCalendarRef" v-if="!loading" :options="calendarOptions" />
                     <div v-else class="text-center p-5"><ProgressSpinner /></div>
                 </template>
             </Card>
@@ -104,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import eventosService from '@/services/eventos';
 import { useToast } from "primevue/usetoast";
@@ -122,6 +232,8 @@ import Calendar from 'primevue/calendar';
 import Divider from 'primevue/divider'
 
 import InputSwitch from 'primevue/inputswitch';
+import InputText from 'primevue/inputtext';
+import MultiSelect from 'primevue/multiselect';
 
 // --- INICIALIZAÇÃO ---
 const router = useRouter();
@@ -131,6 +243,7 @@ const confirm = useConfirm();
 const loading = ref(true);
 
 const calendarOptions = ref({});
+const fullCalendarRef = ref(null);
 const dialogoEventoVisivel = ref(false);
 const eventoEmEdicao = ref({});
 const errors = ref({});
@@ -139,6 +252,35 @@ const dataInicio = ref(null);
 const dataFim = ref(null);
 const filtroDataRelatorio = ref(null); 
 const downloadingPdf = ref(false);
+const filtroBuscaEvento = ref('');
+const filtroStatusEventos = ref([]);
+const statusFiltroCalendarioOptions = [
+    { label: 'Agendado', value: 'agendado' },
+    { label: 'Concluído', value: 'concluido' },
+    { label: 'Cancelado', value: 'cancelado' },
+    { label: 'Stand-by', value: 'standby' },
+];
+const dialogResultadosBuscaVisivel = ref(false);
+const resultadosBusca = ref([]);
+const loadingBusca = ref(false);
+const termoBuscaUtilizado = ref('');
+
+const limparFiltrosEventos = () => {
+    filtroBuscaEvento.value = '';
+    filtroStatusEventos.value = [];
+    dialogResultadosBuscaVisivel.value = false;
+    resultadosBusca.value = [];
+    termoBuscaUtilizado.value = '';
+    fetchEventos();
+};
+
+watch(
+    filtroStatusEventos,
+    () => {
+        fetchEventos();
+    },
+    { deep: true }
+);
 
 const navegarPara = (routeName) => {
     // Fecha o modal antes de navegar
@@ -166,20 +308,93 @@ const checklistUrl = computed(() => {
 
 
 // --- CARREGAMENTO DE DADOS ---
+const formatarDiaEvento = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
+};
+
+const formatarHoraEvento = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+};
+
+const labelStatus = (s) =>
+    ({ agendado: 'Agendado', concluido: 'Concluído', cancelado: 'Cancelado', standby: 'Stand-by' }[s] || s);
+
+const severidadeStatus = (s) =>
+    ({ agendado: 'success', concluido: 'secondary', cancelado: 'danger', standby: 'info' }[s] || 'secondary');
+
+const executarBuscaEventos = async () => {
+    const q = filtroBuscaEvento.value?.trim();
+    if (!q) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Busca',
+            detail: 'Digite um trecho do nome do evento para buscar.',
+            life: 3000,
+        });
+        return;
+    }
+    loadingBusca.value = true;
+    dialogResultadosBuscaVisivel.value = true;
+    resultadosBusca.value = [];
+    termoBuscaUtilizado.value = q;
+    try {
+        const params = { search: q };
+        if (filtroStatusEventos.value?.length) {
+            params.status = [...filtroStatusEventos.value];
+        }
+        const response = await eventosService.getEventos(params);
+        const lista = Array.isArray(response.data) ? response.data : response.data?.results ?? [];
+        lista.sort((a, b) => new Date(a.data_evento) - new Date(b.data_evento));
+        resultadosBusca.value = lista;
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao buscar eventos.', life: 3000 });
+        dialogResultadosBuscaVisivel.value = false;
+    } finally {
+        loadingBusca.value = false;
+    }
+};
+
+const navegarCalendarioParaData = (dataEvento) => {
+    if (!dataEvento) return;
+    const api = fullCalendarRef.value?.getApi?.();
+    if (!api) return;
+    api.gotoDate(dataEvento);
+};
+
+const abrirEventoAPartirDaBusca = (evento) => {
+    dialogResultadosBuscaVisivel.value = false;
+    navegarCalendarioParaData(evento?.data_evento);
+    abrirDialogoEdicao({ id: evento.id });
+};
+
 const fetchEventos = async () => {
     if (!authStore.isAuthenticated) {
-        isLoading.value = false;
+        loading.value = false;
         return;
     }
     loading.value = true;
     try {
-        const response = await eventosService.getEventos();
-        calendarOptions.value.events = response.data.map(evento => ({
+        const params = {};
+        if (filtroStatusEventos.value?.length) {
+            params.status = [...filtroStatusEventos.value];
+        }
+        const response = await eventosService.getEventos(params);
+        const lista = Array.isArray(response.data) ? response.data : response.data?.results ?? [];
+        calendarOptions.value.events = lista.map((evento) => ({
             id: evento.id,
             title: evento.nome,
             start: evento.data_evento,
             color: getCorPorStatus(evento.status),
-            extendedProps: evento
+            extendedProps: evento,
         }));
     } catch (error) {
         toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar eventos.' });

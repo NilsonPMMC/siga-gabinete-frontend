@@ -23,6 +23,29 @@
       </div>
     </header>
 
+    <section class="mb-4">
+      <div class="flex align-items-end gap-2 flex-wrap">
+        <div class="field flex-1 min-w-0 mb-0">
+          <label for="filtroDuplicatas">Buscar nos grupos</label>
+          <InputText
+            id="filtroDuplicatas"
+            v-model="filtroTexto"
+            placeholder="Nome, CPF, matrícula RH, cargo, categoria ou órgão..."
+            class="w-full"
+            @keyup.enter="carregarDuplicatas"
+          />
+        </div>
+        <Button label="Buscar" icon="pi pi-search" @click="carregarDuplicatas" :loading="loading" />
+        <Button
+          v-if="filtroTexto"
+          label="Limpar"
+          icon="pi pi-times"
+          class="p-button-outlined p-button-secondary"
+          @click="limparBusca"
+        />
+      </div>
+    </section>
+
     <main>
       <div v-if="loading" class="text-center mt-4">
         <ProgressSpinner />
@@ -74,9 +97,10 @@
                   </label>
                 </div>
                 <Button
-                  label="Não é duplicata"
+                  label="Sair do grupo"
                   icon="pi pi-user-minus"
                   class="p-button-sm p-button-outlined p-button-secondary"
+                  v-tooltip.top="'Remove este contato da relação de duplicatas'"
                   @click="confirmarDescartarContato(grupoId, contato)"
                 />
               </div>
@@ -97,12 +121,16 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import apiClient from '@/api';
+import { unwrapPaginatedResponse } from '@/utils/paginatedApi';
+import { agruparContatosPorDuplicata } from '@/utils/duplicatasGrupos';
+import { useDuplicatasStore } from '@/stores/duplicatas';
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 
 // Componentes PrimeVue
 import Card from 'primevue/card';
 import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
 import ProgressSpinner from 'primevue/progressspinner';
 import Message from 'primevue/message';
 import RadioButton from 'primevue/radiobutton';
@@ -111,10 +139,14 @@ import ConfirmDialog from 'primevue/confirmdialog';
 
 const toast = useToast();
 const confirm = useConfirm();
+const duplicatasStore = useDuplicatasStore();
+
+const atualizarContador = () => duplicatasStore.fetchContador();
 
 const loading = ref(true);
 const loadingAuditoria = ref(false);
 const loadingMerge = ref(false);
+const filtroTexto = ref('');
 const grupos = ref({});
 const selecoes = ref({});
 
@@ -157,18 +189,19 @@ const descartarGrupo = async (grupoId) => {
     delete next[grupoId];
     grupos.value = next;
     inicializarSelecoes();
+    await atualizarContador();
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.error || 'Não foi possível ignorar o grupo.' });
   }
 };
 
-// Descartar um único contato do grupo ("Não é duplicata")
+// Descartar um único contato do grupo ("Sair do grupo")
 const confirmarDescartarContato = (grupoId, contato) => {
   confirm.require({
     message: `Remover "${contato.nome_completo}" deste grupo? Ele deixará de ser considerado duplicata.`,
-    header: 'Não é duplicata',
+    header: 'Sair do grupo',
     icon: 'pi pi-user-minus',
-    acceptLabel: 'Sim, remover',
+    acceptLabel: 'Sim, sair do grupo',
     rejectLabel: 'Cancelar',
     accept: () => descartarContato(grupoId, contato),
   });
@@ -178,8 +211,11 @@ const descartarContato = async (grupoId, contato) => {
   try {
     await apiClient.post(`/api/municipes/${contato.id}/descartar-duplicata/`);
     toast.add({ severity: 'success', summary: 'Removido', detail: 'Contato removido do grupo de duplicatas.', life: 3000 });
+
     const lista = (grupos.value[grupoId] || []).filter(c => c.id !== contato.id);
     if (lista.length <= 1) {
+      // Grupo deixou de ter duplicatas: limpa relação do(s) restante(s) no backend
+      await limparRelacaoGrupo(grupoId);
       const next = { ...grupos.value };
       delete next[grupoId];
       grupos.value = next;
@@ -187,19 +223,28 @@ const descartarContato = async (grupoId, contato) => {
       grupos.value = { ...grupos.value, [grupoId]: lista };
     }
     inicializarSelecoes();
+    await atualizarContador();
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.error || 'Não foi possível remover.' });
   }
+};
+
+const limparBusca = async () => {
+  filtroTexto.value = '';
+  await carregarDuplicatas();
 };
 
 // Função para buscar os contatos com grupo_duplicado
 const carregarDuplicatas = async () => {
   loading.value = true;
   try {
-    const response = await apiClient.get('/api/municipes/', {
-        params: { tem_grupo_duplicado: 'true' }
-    });
-    agruparContatos(response.data);
+    const params = { tem_grupo_duplicado: 'true' };
+    const q = (filtroTexto.value || '').trim();
+    if (q) params.q = q;
+
+    const response = await apiClient.get('/api/municipes/', { params });
+    const { results } = unwrapPaginatedResponse(response);
+    agruparContatos(results);
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao buscar contatos duplicados.' });
   } finally {
@@ -207,19 +252,15 @@ const carregarDuplicatas = async () => {
   }
 };
 
-// Agrupa os contatos pelo 'grupo_duplicado'
+// Agrupa os contatos pelo 'grupo_duplicado' (só exibe grupos com 2+ membros)
 const agruparContatos = (contatos) => {
-  const gruposMap = {};
-  for (const contato of contatos) {
-    if (contato.grupo_duplicado) {
-      if (!gruposMap[contato.grupo_duplicado]) {
-        gruposMap[contato.grupo_duplicado] = [];
-      }
-      gruposMap[contato.grupo_duplicado].push(contato);
-    }
-  }
-  grupos.value = gruposMap;
+  grupos.value = agruparContatosPorDuplicata(contatos);
   inicializarSelecoes();
+};
+
+const limparRelacaoGrupo = async (grupoId) => {
+  if (!grupoId) return;
+  await apiClient.post('/api/municipes/descartar-grupo/', { grupo_duplicado: grupoId });
 };
 
 // Prepara o objeto para v-model das seleções de rádio
@@ -272,11 +313,11 @@ const confirmarMesclagem = (grupoId) => {
         icon: 'pi pi-exclamation-triangle',
         acceptLabel: 'Sim, mesclar',
         rejectLabel: 'Cancelar',
-        accept: () => executarMesclagem(idPrincipal, contatosParaMesclar),
+        accept: () => executarMesclagem(grupoId, idPrincipal, contatosParaMesclar),
     });
 };
 
-const executarMesclagem = async (idPrincipal, contatosParaMesclar) => {
+const executarMesclagem = async (grupoId, idPrincipal, contatosParaMesclar) => {
   loadingMerge.value = true;
   const totalTransferidos = { atendimentos: 0, visitas: 0, solicitacoes_agenda: 0, perfis: 0, reservas: 0 };
   try {
@@ -292,6 +333,10 @@ const executarMesclagem = async (idPrincipal, contatosParaMesclar) => {
       totalTransferidos.perfis += t.perfis || 0;
       totalTransferidos.reservas += t.reservas || 0;
     }
+
+    // Fusão concluída: principal sai da relação de duplicatas
+    await limparRelacaoGrupo(grupoId);
+
     const partes = [];
     if (totalTransferidos.atendimentos) partes.push(`${totalTransferidos.atendimentos} atendimento(s)`);
     if (totalTransferidos.visitas) partes.push(`${totalTransferidos.visitas} visita(s)`);
@@ -301,6 +346,7 @@ const executarMesclagem = async (idPrincipal, contatosParaMesclar) => {
     const detail = partes.length ? partes.join(', ') + ' transferidos.' : 'Contatos mesclados com sucesso!';
     toast.add({ severity: 'success', summary: 'Fusão concluída', detail, life: 5000 });
     await carregarDuplicatas();
+    await atualizarContador();
   } catch (error) {
     const errorMsg = error.response?.data?.error || 'Não foi possível completar a operação.';
     toast.add({ severity: 'error', summary: 'Erro na Fusão', detail: errorMsg, life: 5000 });

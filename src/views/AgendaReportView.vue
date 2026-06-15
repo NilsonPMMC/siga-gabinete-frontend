@@ -30,7 +30,8 @@ const statusOptions = ref([
     { label: 'Negado', value: 'NEGADO' },
     { label: 'Cancelado', value: 'CANCELADO' },
     { label: 'Reagendar', value: 'REAGENDAR' },
-    { label: 'Encaminhado', value: 'ENCAMINHADO' }
+    { label: 'Encaminhado', value: 'ENCAMINHADO' },
+    { label: 'Concluido', value: 'CONCLUIDO' }
 ]);
 
 // --- LÓGICA DO MODAL (AS PEÇAS QUE FALTAVAM) ---

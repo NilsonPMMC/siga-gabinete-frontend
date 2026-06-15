@@ -18,7 +18,7 @@
             <span class="flex align-items-center p-input-icon-left flex-1" style="min-width: 240px">
               <InputText
                 v-model="buscaGeral"
-                placeholder="Buscar por nome, CPF, cargo, órgão..."
+                placeholder="Nome, CPF, matrícula RH, cargo, categoria ou órgão..."
                 class="w-full"
                 @keyup.enter="carregarItens"
               />

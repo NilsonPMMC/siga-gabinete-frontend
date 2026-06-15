@@ -26,3 +26,16 @@ export const gerarEtiquetas = (payload) => {
     responseType: 'text',
   });
 };
+
+/**
+ * Importa CSV para atualizar dados de etiqueta por ID.
+ * Campos esperados no CSV: id, dados de etiqueta (ou dados_etiqueta)
+ */
+export const importarDadosEtiquetaCSV = (formData, dryRun = false) => {
+  if (dryRun) {
+    formData.append('dry_run', 'true');
+  }
+  return api.post('/api/importar-dados-etiqueta-csv/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};

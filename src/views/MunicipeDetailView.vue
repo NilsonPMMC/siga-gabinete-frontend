@@ -22,7 +22,7 @@ const dossieDialogVisible = ref(false);
 const filtroEscopo = ref('total');
 const secoesSelecionadas = ref(['atendimentos', 'agendas', 'eventos']);
 
-/** Histórico unificado: atendimentos (com origem) + visitas, ordenado por data decrescente */
+/** Histórico unificado: atendimentos (inclui visitas migradas); visitas legadas só sem vínculo. */
 const historicoUnificado = computed(() => {
   if (!municipeData.value) return [];
   const itens = [];
@@ -34,24 +34,46 @@ const historicoUnificado = computed(() => {
       tipo: 'atendimento',
       dataOrdenacao: a.data_criacao ? new Date(a.data_criacao).getTime() : 0,
       data: dataStr,
-      detalhe: `Atendimento criado via ${a.origem_display || a.origem || 'Presencial'} em ${dataStr}`,
+      detalhe: `Atendimento via ${a.origem_display || a.origem || 'Presencial'}${a.assunto_nome ? ` — ${a.assunto_nome}` : ''} em ${dataStr}`,
       protocolo: a.protocolo,
       id: a.id,
     });
   });
-  visitas.forEach((v) => {
-    const dataStr = v.data_checkin ? new Date(v.data_checkin).toLocaleDateString('pt-BR') : '';
-    itens.push({
-      tipo: 'visita',
-      dataOrdenacao: v.data_checkin ? new Date(v.data_checkin).getTime() : 0,
-      data: dataStr,
-      detalhe: `Visita/Presença registrada em ${dataStr}`,
-      protocolo: null,
-      id: v.id,
+  visitas
+    .filter((v) => !v.atendimento)
+    .forEach((v) => {
+      const dataStr = v.data_checkin ? new Date(v.data_checkin).toLocaleDateString('pt-BR') : '';
+      itens.push({
+        tipo: 'visita',
+        dataOrdenacao: v.data_checkin ? new Date(v.data_checkin).getTime() : 0,
+        data: dataStr,
+        detalhe: `Visita/Presença (legado) em ${dataStr}`,
+        protocolo: null,
+        id: null,
+      });
     });
-  });
   itens.sort((a, b) => b.dataOrdenacao - a.dataOrdenacao);
   return itens;
+});
+
+const historicoEnriquecimentoIA = computed(() => {
+  const audit = municipeData.value?.auditoria_ia;
+  const eventos = Array.isArray(audit?.enrichment_events) ? audit.enrichment_events : [];
+  return [...eventos]
+    .map((e) => ({
+      ts: e?.ts || null,
+      data: e?.ts ? new Date(e.ts).toLocaleString('pt-BR') : '—',
+      source: e?.source || 'unknown',
+      profile_mode: e?.profile_mode || '—',
+      user_id: e?.user_id ?? '—',
+      applied_fields: e?.applied_fields || {},
+      profile_result: e?.profile_result || {},
+    }))
+    .sort((a, b) => {
+      const ta = a.ts ? new Date(a.ts).getTime() : 0;
+      const tb = b.ts ? new Date(b.ts).getTime() : 0;
+      return tb - ta;
+    });
 });
 
 // Função para buscar os dados (Extraída do onMounted para ser reutilizável)
@@ -253,7 +275,7 @@ const enderecoFormatado = computed(() => {
                 <Column field="data" header="Data"></Column>
                 <Column field="tipo" header="Tipo">
                     <template #body="{ data }">
-                        <Tag :value="data.tipo === 'atendimento' ? 'Atendimento' : 'Visita/Presença'" :severity="data.tipo === 'atendimento' ? 'info' : 'secondary'" />
+                        <Tag value="Atendimento" severity="info" />
                     </template>
                 </Column>
                 <Column field="detalhe" header="Detalhe" style="width: 45%"></Column>
@@ -265,27 +287,9 @@ const enderecoFormatado = computed(() => {
                 </Column>
                 <Column header="Ações">
                     <template #body="{ data }">
-                        <Button v-if="data.tipo === 'atendimento' && podeVerDetalhesAtendimento()" icon="pi pi-eye" text rounded @click="verAtendimento(data.id)" title="Ver Detalhes do Atendimento" />
+                        <Button v-if="data.id && podeVerDetalhesAtendimento()" icon="pi pi-eye" text rounded @click="verAtendimento(data.id)" title="Ver atendimento" />
                         <span v-else>—</span>
                     </template>
-                </Column>
-            </DataTable>
-        </TabPanel>
-
-        <TabPanel header="Visitas / Check-in">
-            <DataTable :value="municipeData.visitas || []" paginator :rows="10" :loading="isLoading" emptyMessage="Nenhuma visita ou check-in registrado.">
-                <Column header="Data">
-                    <template #body="{ data }">
-                        {{ data.data_checkin ? new Date(data.data_checkin).toLocaleString('pt-BR') : '—' }}
-                    </template>
-                </Column>
-                <Column field="conta_destino_nome" header="Gabinete"></Column>
-                <Column header="Responsável destino">
-                    <template #body="{ data }">{{ data.usuario_destino_nome || '—' }}</template>
-                </Column>
-                <Column field="registrado_por_nome" header="Registrado por"></Column>
-                <Column field="observacao" header="Observação">
-                    <template #body="{ data }">{{ data.observacao || '—' }}</template>
                 </Column>
             </DataTable>
         </TabPanel>
@@ -326,6 +330,39 @@ const enderecoFormatado = computed(() => {
                 <Column header="Ações">
                   <template #body="slotProps">
                     <Button v-if="authStore.isSecretaria || authStore.user?.is_superuser" icon="pi pi-pencil" text rounded severity="secondary" @click="verAgenda(slotProps.data.id)" title="Gerenciar Solicitação" />
+                  </template>
+                </Column>
+            </DataTable>
+        </TabPanel>
+
+        <TabPanel header="Enriquecimento IA">
+            <DataTable
+              :value="historicoEnriquecimentoIA"
+              paginator
+              :rows="8"
+              :loading="isLoading"
+              emptyMessage="Nenhum evento de enriquecimento IA registrado."
+            >
+                <Column field="data" header="Data/Hora" style="width: 16rem"></Column>
+                <Column field="source" header="Origem" style="width: 14rem">
+                  <template #body="{ data }">
+                    <Tag :value="data.source" severity="info" />
+                  </template>
+                </Column>
+                <Column field="profile_mode" header="Perfil" style="width: 8rem"></Column>
+                <Column field="user_id" header="Usuário" style="width: 7rem"></Column>
+                <Column header="Campos aplicados">
+                  <template #body="{ data }">
+                    <div class="text-sm">
+                      {{ Object.entries(data.applied_fields || {}).filter(([, v]) => v).map(([k]) => k).join(', ') || '—' }}
+                    </div>
+                  </template>
+                </Column>
+                <Column header="Resultado perfil">
+                  <template #body="{ data }">
+                    <span v-if="data.profile_result?.created">perfil criado</span>
+                    <span v-else-if="data.profile_result?.updated">perfil atualizado</span>
+                    <span v-else>—</span>
                   </template>
                 </Column>
             </DataTable>

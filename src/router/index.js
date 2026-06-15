@@ -1,68 +1,45 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import LoginView from '../views/LoginView.vue'
-import DashboardView from '../views/DashboardView.vue'
-import AtendimentoDetailView from '../views/AtendimentoDetailView.vue'
-import AtendimentoFormView from '../views/AtendimentoFormView.vue';
-import AgendaListView from '../views/AgendaListView.vue';
-import AgendaDetailView from '../views/AgendaDetailView.vue';
-import AgendaFormView from '../views/AgendaFormView.vue';
-import RelatoriosView from '../views/RelatoriosView.vue';
-import AgendaReportView from '../views/AgendaReportView.vue';
-import MunicipeDetailView from '../views/MunicipeDetailView.vue';
-import ContatosView from '../views/ContatosView.vue';
-import BuscaView from '../views/BuscaView.vue';
-import ConfiguracoesView from '../views/ConfiguracoesView.vue';
-import RequestPasswordResetView from '../views/RequestPasswordResetView.vue';
-import ResetPasswordConfirmView from '../views/ResetPasswordConfirmView.vue';
-import EspacosView from '../views/EspacosView.vue';
-import EspacoAgendaView from '../views/EspacoAgendaView.vue';
-import CheckInHistoryView from '@/views/CheckInHistoryView.vue';
-import GoogleAgendaView from '@/views/GoogleAgendaView.vue';
-import AgendasCompartilhadasListView from '@/views/AgendasCompartilhadasListView.vue';
-import AgendaCompartilhadaView from '@/views/AgendaCompartilhadaView.vue';
-import AtendimentoListView from '@/views/AtendimentoListView.vue';
-import BiAnalyticsView from '../views/BiAnalyticsView.vue';
-import AgendaInstitucionalManager from '../views/agenda/AgendaInstitucionalManager.vue';
-import VisaoDiaRecepcao from '../views/agenda/VisaoDiaRecepcao.vue';
-import BiEventosView from '../views/eventos/bi/BiEventosView.vue';
-import EscalasView from '../views/escalas/EscalasView.vue';
-import SaneamentoDadosView from '../views/SaneamentoDadosView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/login', name: 'login', component: LoginView },
-    { path: '/', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
-    { path: '/atendimentos', name: 'atendimentos-list', component: AtendimentoListView, meta: { requiresAuth: true } },
-    { path: '/agendas', name: 'agendas', component: AgendaListView, meta: { requiresAuth: true } },
-    { path: '/agendas/novo', name: 'agenda-novo', component: AgendaFormView, meta: { requiresAuth: true } },
-    { path: '/agendas/editar/:id', name: 'agenda-editar', component: AgendaFormView, meta: { requiresAuth: true } },
-    { path: '/agendas/:id', name: 'agenda-detalhes', component: AgendaDetailView, meta: { requiresAuth: true } },
-    { path: '/relatorios', name: 'relatorios', component: RelatoriosView, meta: { requiresAuth: true } },
-    { path: '/atendimentos/novo', name: 'atendimento-novo', component: AtendimentoFormView, meta: { requiresAuth: true } },
-    { path: '/atendimentos/editar/:id', name: 'atendimento-editar', component: AtendimentoFormView, meta: { requiresAuth: true } },
-    { path: '/atendimentos/:id', name: 'atendimento-detalhe', component: AtendimentoDetailView, meta: { requiresAuth: true } },
-    { path: '/relatorios/agendas', name: 'relatorios-agendas', component: AgendaReportView, meta: { requiresAuth: true } },
-    { path: '/municipes/:id/historico', name: 'municipe-detalhe', component: MunicipeDetailView, meta: { requiresAuth: true } },
-    { path: '/contatos', name: 'contatos', component: ContatosView, meta: { requiresAuth: true } },
-    { path: '/busca', name: 'busca', component: BuscaView, meta: { requiresAuth: true } },
-    { path: '/configuracoes', name: 'configuracoes', component: ConfiguracoesView, meta: { requiresAuth: true } },
+    { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
+    { path: '/', name: 'dashboard', component: () => import('../views/DashboardView.vue'), meta: { requiresAuth: true } },
+    { path: '/atendimentos', name: 'atendimentos-list', component: () => import('../views/AtendimentoListView.vue'), meta: { requiresAuth: true } },
+    { path: '/agendas', name: 'agendas', component: () => import('../views/AgendaListView.vue'), meta: { requiresAuth: true } },
+    { path: '/agendas/novo', name: 'agenda-novo', component: () => import('../views/AgendaFormView.vue'), meta: { requiresAuth: true } },
+    { path: '/agendas/editar/:id', name: 'agenda-editar', component: () => import('../views/AgendaFormView.vue'), meta: { requiresAuth: true } },
+    { path: '/agendas/:id', name: 'agenda-detalhes', component: () => import('../views/AgendaDetailView.vue'), meta: { requiresAuth: true } },
+    { path: '/relatorios', name: 'relatorios', component: () => import('../views/RelatoriosView.vue'), meta: { requiresAuth: true, permission: 'canViewRelatoriosAtendimentos' } },
+    { path: '/atendimentos/novo', name: 'atendimento-novo', component: () => import('../views/AtendimentoFormView.vue'), meta: { requiresAuth: true } },
+    { path: '/atendimentos/editar/:id', name: 'atendimento-editar', component: () => import('../views/AtendimentoFormView.vue'), meta: { requiresAuth: true } },
+    { path: '/atendimentos/:id', name: 'atendimento-detalhe', component: () => import('../views/AtendimentoDetailView.vue'), meta: { requiresAuth: true } },
+    { path: '/relatorios/agendas', name: 'relatorios-agendas', component: () => import('../views/AgendaReportView.vue'), meta: { requiresAuth: true } },
+    { path: '/municipes/:id/historico', name: 'municipe-detalhe', component: () => import('../views/MunicipeDetailView.vue'), meta: { requiresAuth: true } },
+    { path: '/contatos', name: 'contatos', component: () => import('../views/ContatosView.vue'), meta: { requiresAuth: true } },
+    { path: '/busca', name: 'busca', component: () => import('../views/BuscaView.vue'), meta: { requiresAuth: true } },
+    { path: '/configuracoes', name: 'configuracoes', component: () => import('../views/ConfiguracoesView.vue'), meta: { requiresAuth: true } },
     { path: '/configuracoes/checklist-items', name: 'config-checklist-items', component: () => import('@/views/eventos/MasterChecklistManager.vue'), meta: { requiresAuth: true, permission: 'canManageEventos' } },
     { path: '/configuracoes/contato-categorias', name: 'config-contato-categorias', component: () => import('@/views/MasterContatoCategorias.vue'), meta: { requiresAuth: true, permission: 'canManageEventos' } },
-    { path: '/recuperar-senha', name: 'recuperar-senha', component: RequestPasswordResetView },
-    { path: '/reset-password/:uid/:token', name: 'reset-password-confirm', component: ResetPasswordConfirmView },
-    { path: '/espacos', name: 'espacos', component: EspacosView, meta: { requiresAuth: true } },
-    { path: '/espacos/:id/agenda', name: 'espaco-agenda', component: EspacoAgendaView, meta: { requiresAuth: true } },
-    { path: '/checkins', name: 'CheckInHistory', component: CheckInHistoryView, meta: { requiresAuth: true } },
-    { path: '/google-agenda', name: 'GoogleAgenda', component: GoogleAgendaView, meta: { requiresAuth: true } },
-    { path: '/agendas-compartilhadas', name: 'agendas-compartilhadas-list', component: AgendasCompartilhadasListView, meta: { requiresAuth: true } },
-    { path: '/agendas-compartilhadas/:id', name: 'agenda-compartilhada-detail', component: AgendaCompartilhadaView, meta: { requiresAuth: true } },
-    { 
-      path: '/eventos', 
-      name: 'eventos-lista', 
-      component: () => import('@/views/eventos/EventosLista.vue'), 
-      meta: { requiresAuth: true, permission: 'canManageEventos' } // Permissão específica
+    { path: '/recuperar-senha', name: 'recuperar-senha', component: () => import('../views/RequestPasswordResetView.vue'), meta: { public: true } },
+    { path: '/reset-password/:uid/:token', name: 'reset-password-confirm', component: () => import('../views/ResetPasswordConfirmView.vue'), meta: { public: true } },
+    { path: '/espacos', name: 'espacos', component: () => import('../views/EspacosView.vue'), meta: { requiresAuth: true } },
+    { path: '/espacos/:id/agenda', name: 'espaco-agenda', component: () => import('../views/EspacoAgendaView.vue'), meta: { requiresAuth: true } },
+    {
+      path: '/checkins',
+      redirect: '/atendimentos',
+    },
+    { path: '/google-agenda', name: 'GoogleAgenda', component: () => import('@/views/GoogleAgendaView.vue'), meta: { requiresAuth: true } },
+    { path: '/google-calendar', name: 'GoogleCalendar', component: () => import('@/views/GoogleCalendarView.vue'), meta: { requiresAuth: true } },
+    { path: '/agendas-compartilhadas', name: 'agendas-compartilhadas-list', component: () => import('@/views/AgendasCompartilhadasListView.vue'), meta: { requiresAuth: true } },
+    { path: '/agendas-compartilhadas/:id', name: 'agenda-compartilhada-detail', component: () => import('@/views/AgendaCompartilhadaView.vue'), meta: { requiresAuth: true } },
+    {
+      path: '/eventos',
+      name: 'eventos-lista',
+      component: () => import('@/views/eventos/EventosLista.vue'),
+      meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
     {
       path: '/mailings',
@@ -79,36 +56,36 @@ const router = createRouter({
     },
     {
       path: '/eventos/:id/convidados',
-      name: 'evento-convidados', // Página dedicada para convidados
-      component: () => import('@/views/eventos/EventoConvidados.vue'), // Criaremos este
+      name: 'evento-convidados',
+      component: () => import('@/views/eventos/EventoConvidados.vue'),
       props: true,
       meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
     {
       path: '/eventos/:id/presenca',
-      name: 'evento-presenca', // Página dedicada para a lista de presença
-      component: () => import('@/views/eventos/EventoPresenca.vue'), // Criaremos este
+      name: 'evento-presenca',
+      component: () => import('@/views/eventos/EventoPresenca.vue'),
       props: true,
       meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
     {
       path: '/eventos/:id/checklist',
-      name: 'evento-checklist', // Página dedicada para o checklist
-      component: () => import('@/views/eventos/EventoChecklist.vue'), // Criaremos este
+      name: 'evento-checklist',
+      component: () => import('@/views/eventos/EventoChecklist.vue'),
       props: true,
       meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
     {
       path: '/eventos/:id/comunicacoes',
-      name: 'evento-comunicacoes', // O mesmo nome que usamos no botão
-      component: () => import('@/views/eventos/EventoComunicacao.vue'), // Criaremos este arquivo
+      name: 'evento-comunicacoes',
+      component: () => import('@/views/eventos/EventoComunicacao.vue'),
       props: true,
       meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
     {
-      path: '/comunicacoes/:id/detalhes', // Uma URL focada na comunicação
-      name: 'evento-comunicacao-detalhes', // O nome que usamos no botão
-      component: () => import('@/views/eventos/EventoComunicacaoView.vue'), // O novo arquivo que vamos criar
+      path: '/comunicacoes/:id/detalhes',
+      name: 'evento-comunicacao-detalhes',
+      component: () => import('@/views/eventos/EventoComunicacaoView.vue'),
       props: true,
       meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
@@ -116,13 +93,15 @@ const router = createRouter({
       path: '/check-in/:contaId',
       name: 'publico-check-in',
       component: () => import('@/views/public/RegistrarPresenca.vue'),
-      props: true
+      props: true,
+      meta: { public: true }
     },
     {
       path: '/public/checklist/:token',
       name: 'public-checklist',
       component: () => import('@/views/public/PreencherChecklist.vue'),
-      props: true // Passa o :token como prop para o componente
+      props: true,
+      meta: { public: true }
     },
     {
       path: '/gestao-duplicatas',
@@ -171,80 +150,109 @@ const router = createRouter({
       path: '/contatos/editar/:id',
       name: 'contato-editar',
       component: () => import('../views/ContatoFormView.vue'),
-      props: true, // Isso faz com que o :id da URL seja passado como prop para o componente
+      props: true,
       meta: { requiresAuth: true }
     },
     {
       path: '/bi-analytics',
       name: 'bi-analytics',
-      component: BiAnalyticsView,
-      meta: { requiresAuth: true } // Garante proteção
+      component: () => import('../views/BiAnalyticsView.vue'),
+      meta: { requiresAuth: true }
     },
     {
       path: '/agenda-institucional',
       name: 'agenda-institucional',
-      component: AgendaInstitucionalManager,
+      component: () => import('../views/agenda/AgendaInstitucionalManager.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/agenda-recepcao',
       name: 'agenda-recepcao',
-      component: VisaoDiaRecepcao,
+      component: () => import('../views/agenda/VisaoDiaRecepcao.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/eventos/bi',
       name: 'eventos-bi',
-      component: BiEventosView,
+      component: () => import('../views/eventos/bi/BiEventosView.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/escalas',
       name: 'escalas',
-      component: EscalasView,
+      component: () => import('../views/escalas/EscalasView.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/saneamento-dados',
       name: 'saneamento-dados',
-      component: SaneamentoDadosView,
+      component: () => import('../views/SaneamentoDadosView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/higienizacao-emails',
+      name: 'higienizacao-emails',
+      component: () => import('@/views/higienizacao/HigienizacaoEmailsView.vue'),
+      meta: { requiresAuth: true, permission: 'canManageEventos' }
     },
   ]
 })
 
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
-  
-  // Garante que o usuário está carregado antes de decidir
-  // (Dependendo de como seu auth funciona, talvez precise de um await authStore.checkAuth())
-  const user = authStore.user;
 
-  // Se a rota exige login e não tem usuário...
-  if (to.meta.requiresAuth && !user) {
-      next('/login');
+  if (to.meta.requiresAuth) {
+    const hadSessionBeforeCheck = Boolean(authStore.accessToken || authStore.refresh);
+    const hasActiveSession = await authStore.ensureActiveSession();
+    if (!hasActiveSession) {
+      authStore.clearSession();
+      next(hadSessionBeforeCheck ? { path: '/login', query: { reason: 'expired' }, replace: true } : { path: '/login', replace: true });
       return;
+    }
   }
 
-  // --- LÓGICA DE REDIRECIONAMENTO INTELIGENTE ---
-  // Se o usuário está tentando ir para a Home/Dashboard ('/')
+  const user = authStore.user;
+  if (to.meta.requiresAuth && !user) {
+    authStore.clearSession();
+    next({ path: '/login', replace: true });
+    return;
+  }
+
+  if (to.meta.permission && user) {
+    const permitido = authStore[to.meta.permission];
+    if (!permitido) {
+      next('/');
+      return;
+    }
+  }
+
+  if (authStore.isUsuarioEstritamenteOperadorCrm && !to.meta.public) {
+    const rotasOperador = ['/contatos', '/login'];
+    if (!rotasOperador.includes(to.path)) {
+      next('/contatos');
+      return;
+    }
+  }
+
   if (to.path === '/' && user) {
-      
-      // Verifica se é um usuário ESTRITAMENTE OPERACIONAL de Escalas
-      const isApenasEscalas = 
-          user.groups.includes('Escalas') &&         // Tem o grupo Escalas
-          !user.groups.includes('Gestor de Escalas') && // NÃO é Gestor
-          !user.groups.includes('Membro do Gabinete') &&
-          !user.groups.includes('Secretária') &&       // NÃO é Gabinete
-          !user.is_superuser;                        // NÃO é Admin
+    const isApenasEscalas =
+      user.groups.includes('Escalas') &&
+      !user.groups.includes('Gestor de Escalas') &&
+      !user.groups.includes('Membro do Gabinete') &&
+      !user.groups.includes('Secretária') &&
+      !user.is_superuser;
 
-      if (isApenasEscalas) {
-          // Desvia o trânsito direto para o módulo dele
-          next('/escalas'); 
-          return;
-      }
+    if (isApenasEscalas) {
+      next('/escalas');
+      return;
+    }
+
+    if (authStore.isUsuarioEstritamenteOperadorCrm) {
+      next('/contatos');
+      return;
+    }
   }
-  
+
   next();
 });
 

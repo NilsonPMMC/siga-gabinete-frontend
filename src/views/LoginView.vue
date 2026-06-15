@@ -1,10 +1,13 @@
 <script setup>
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'primevue/usetoast';
+import { useRoute, useRouter } from 'vue-router';
 
 const authStore = useAuthStore();
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
 const username = ref('');
 const password = ref('');
 const isLoading = ref(false);
@@ -17,6 +20,29 @@ const handleLogin = async () => {
   }
   isLoading.value = false;
 };
+
+onMounted(() => {
+  if (route.query.reason === 'expired') {
+    toast.add({
+      severity: 'warn',
+      summary: 'Sessão expirada',
+      detail: 'Sua sessão expirou. Faça login novamente.',
+      life: 4000
+    });
+    router.replace({ path: '/login' });
+    return;
+  }
+
+  if (route.query.reason === 'logged_out') {
+    toast.add({
+      severity: 'success',
+      summary: 'Logout realizado',
+      detail: 'Você saiu da sessão com sucesso.',
+      life: 3000
+    });
+    router.replace({ path: '/login' });
+  }
+});
 </script>
 
 <template>

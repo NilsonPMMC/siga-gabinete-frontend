@@ -49,12 +49,25 @@ onMounted(async () => {
         <template #content><span class="font-bold">Triagens Realizadas Hoje</span></template>
       </Card>
     </div>
-    <div v-if="summaryData.checkins_do_dia !== undefined" class="col-12 md:col-6 lg:col-3">
+    <div v-if="summaryData.atendimentos_do_dia !== undefined" class="col-12 md:col-6 lg:col-3">
       <Card class="summary-card" :style="{ backgroundColor: '#F0F9FF', color: '#0369A1' }">
-        <template #title><div class="text-4xl">{{ summaryData.checkins_do_dia }}</div></template>
-        <template #content><span class="font-bold">Check-ins Realizados Hoje</span></template>
+        <template #title><div class="text-4xl">{{ summaryData.atendimentos_do_dia }}</div></template>
+        <template #content><span class="font-bold">Atendimentos no Gabinete Hoje</span></template>
       </Card>
     </div>
+
+    <template v-if="summaryData.atendimentos_por_assunto_hoje?.length">
+      <div
+        v-for="item in summaryData.atendimentos_por_assunto_hoje"
+        :key="item.nome"
+        class="col-12 md:col-6 lg:col-3"
+      >
+        <Card class="summary-card" :style="{ backgroundColor: '#F5F3FF', color: '#5b21b6' }">
+          <template #title><div class="text-4xl">{{ item.total }}</div></template>
+          <template #content><span class="font-bold">{{ item.nome }} (hoje)</span></template>
+        </Card>
+      </div>
+    </template>
 
     <div v-if="summaryData.novos_atendimentos !== undefined" class="col-12 md:col-6 lg:col-3">
       <Card class="summary-card" :style="{ backgroundColor: '#FFF7ED', color: '#9A3412' }">
@@ -79,6 +92,19 @@ onMounted(async () => {
       <Card class="summary-card" :style="{ backgroundColor: '#FCE7F3', color: '#BE185D' }">
         <template #title><div class="text-4xl">{{ summaryData.agendas_em_analise }}</div></template>
         <template #content><span class="font-bold">Agendas em Análise</span></template>
+      </Card>
+    </div>
+
+    <div v-if="summaryData.sla_vencidos !== undefined" class="col-12 md:col-6 lg:col-3">
+      <Card class="summary-card" :style="{ backgroundColor: '#FEE2E2', color: '#B91C1C' }">
+        <template #title><div class="text-4xl">{{ summaryData.sla_vencidos }}</div></template>
+        <template #content><span class="font-bold">Atendimentos SLA Vencidos</span></template>
+      </Card>
+    </div>
+    <div v-if="summaryData.sla_em_risco !== undefined" class="col-12 md:col-6 lg:col-3">
+      <Card class="summary-card" :style="{ backgroundColor: '#FEF3C7', color: '#B45309' }">
+        <template #title><div class="text-4xl">{{ summaryData.sla_em_risco }}</div></template>
+        <template #content><span class="font-bold">Atendimentos SLA em Risco</span></template>
       </Card>
     </div>
 
