@@ -191,7 +191,12 @@
 
     <template #footer>
       <div class="flex justify-content-between align-items-center w-full">
-          <span class="text-gray-500 text-sm">* Campos obrigatórios</span>
+          <div class="flex flex-column gap-1">
+            <span class="text-gray-500 text-sm">* Campos obrigatórios</span>
+            <small v-if="authStore.canViewCrmLogs && isEditMode && ultimoLogCrm" class="text-color-secondary">
+              Última alteração: {{ formatarLinhaCrmLog(ultimoLogCrm) }}
+            </small>
+          </div>
           <div class="flex gap-2">
               <Button label="Cancelar" icon="pi pi-times" text severity="secondary" @click="fecharModal" />
               <Button label="Salvar Ficha" icon="pi pi-check" @click="salvarMunicipe" :loading="isSaving" />
@@ -206,6 +211,9 @@ import { ref, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useAuthStore } from '@/stores/auth';
 import apiClient from '@/api';
+import contatosService from '@/services/contatos';
+import { unwrapPaginatedResponse } from '@/utils/paginatedApi';
+import { formatarLinhaCrmLog } from '@/utils/crmLogs';
 import Avatar from 'primevue/avatar';
 import FotoCapture from '@/components/common/FotoCapture.vue';
 import avatarPlaceholderUrl from '@/public/images/avatar-placeholder.png';
@@ -222,6 +230,7 @@ const toast = useToast();
 const authStore = useAuthStore();
 const isLoading = ref(false);
 const isSaving = ref(false);
+const ultimoLogCrm = ref(null);
 
 const categoriasContato = ref([]);
 const contas = ref([]);
@@ -274,6 +283,21 @@ const temDuplicataNoFormulario = computed(() =>
 const isEditMode = computed(() => !!props.municipeId);
 const pageTitle = computed(() => isEditMode.value ? 'Editar Contato' : 'Novo Contato Rápido');
 
+const carregarUltimoLogCrm = async (municipeId) => {
+  if (!authStore.canViewCrmLogs || !municipeId) {
+    ultimoLogCrm.value = null;
+    return;
+  }
+  try {
+    const response = await contatosService.getCrmLogs({ municipeId, pageSize: 1 });
+    const { results } = unwrapPaginatedResponse(response);
+    ultimoLogCrm.value = results[0] || null;
+  } catch (error) {
+    console.error('Erro ao carregar último log CRM:', error);
+    ultimoLogCrm.value = null;
+  }
+};
+
 // --- DEBUG: CARREGAMENTO ---
 async function carregarDados() {
   isLoading.value = true;
@@ -306,6 +330,7 @@ async function carregarDados() {
       data.perfis = data.perfis.map(p => ({ ...p, conta: p.conta?.id ?? p.conta, categoria: p.categoria?.id ?? p.categoria }));
       
       municipe.value = data;
+      await carregarUltimoLogCrm(props.municipeId);
 
       if (data.foto) {
           console.log("Definindo preview com URL do backend:", data.foto);
@@ -317,6 +342,7 @@ async function carregarDados() {
 
     } else {
         resetForm();
+        ultimoLogCrm.value = null;
         // Cria um perfil vazio para o usuário preencher (categoria é por perfil)
         if (!municipe.value.perfis?.length && contasParaPerfil.value?.length) {
             municipe.value.perfis = [{ conta: contasParaPerfil.value[0].id, categoria: null, cargo: '', instituicao: '', departamento: '', tratamento: '', ativo: true }];

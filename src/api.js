@@ -49,6 +49,8 @@ const isAuthEndpoint = (url = '') => (
   url.includes('/api/token/') || url.includes('/api/token/refresh/')
 );
 
+const isPublicApiEndpoint = (url = '') => url.includes('/api/public/');
+
 let refreshInFlight = null;
 
 async function ensureFreshAccessToken(authStore) {
@@ -80,7 +82,10 @@ apiClient.interceptors.request.use(
     }
 
     const requestUrl = config?.url || '';
-    if (config._skipAuthRefresh || isAuthEndpoint(requestUrl)) {
+    if (config._skipAuthRefresh || isAuthEndpoint(requestUrl) || isPublicApiEndpoint(requestUrl)) {
+      if (isPublicApiEndpoint(requestUrl)) {
+        delete config.headers.Authorization;
+      }
       return config;
     }
 
@@ -111,6 +116,10 @@ apiClient.interceptors.response.use(
     const requestUrl = originalRequest?.url || '';
 
     if (responseStatus === 401 && !originalRequest?._retry && !isAuthEndpoint(requestUrl)) {
+      if (isPublicApiEndpoint(requestUrl)) {
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
 
       try {

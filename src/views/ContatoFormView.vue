@@ -103,6 +103,13 @@
         </div>
         
       </div>
+
+      <MunicipeCrmLogsPanel
+        v-if="authStore.canViewCrmLogs && isEditMode"
+        :municipe-id="route.params.id"
+        titulo="Auditoria de alterações deste contato"
+        :refresh-key="logsRefreshKey"
+      />
       
       <div class="form-actions">
         <Button label="Cancelar" severity="secondary" outlined @click="voltar" />
@@ -118,6 +125,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useAuthStore } from '@/stores/auth';
 import apiClient from '@/api';
+import MunicipeCrmLogsPanel from '@/components/municipes/MunicipeCrmLogsPanel.vue';
 
 // Inicialização
 const router = useRouter();
@@ -134,6 +142,7 @@ const categoriasContato = ref([]);
 const contas = ref([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
+const logsRefreshKey = ref(0);
 
 const tiposDeTelefone = ref([
     { label: 'Principal', value: 'principal' }, { label: 'Celular', value: 'celular' },
@@ -215,6 +224,7 @@ const salvarMunicipe = async () => {
         if (isEditMode.value) {
             // Envia o payload corrigido
             await apiClient.put(`/api/municipes/${payload.id}/`, payload);
+            logsRefreshKey.value += 1;
             toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato atualizado!' });
         } else {
             // Envia o payload corrigido

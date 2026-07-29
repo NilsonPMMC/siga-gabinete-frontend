@@ -46,4 +46,11 @@ export default {
     });
     return response.data;
   },
+  getCrmLogs({ municipeId = null, grupo = null, pageSize = 20 } = {}) {
+    const params = new URLSearchParams();
+    params.append('page_size', String(pageSize));
+    if (municipeId) params.append('municipe_id', String(municipeId));
+    if (grupo) params.append('grupo', grupo);
+    return apiClient.get('/api/logs-crm/', { params });
+  },
 };

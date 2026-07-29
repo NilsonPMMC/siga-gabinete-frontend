@@ -86,26 +86,31 @@ const itensSelecionados = ref([]); // Itens que o usuário externo seleciona na 
 // --- Carregamento dos Dados ---
 onMounted(async () => {
     try {
-        // Buscamos o checklist para pegar o nome do evento e validar o token
         const publicChecklistResponse = await eventosService.getPublicChecklist(token);
-        // E também a lista completa de itens mestre para exibir
-        const masterItemsResponse = await eventosService.getMasterChecklistItems();
 
-        if (!publicChecklistResponse || !publicChecklistResponse.data) {
+        if (!publicChecklistResponse?.data) {
            throw new Error("Checklist não encontrado ou link inválido.");
         }
         checklist.value = publicChecklistResponse.data;
-        
-        // A tabela é populada com TODOS os itens mestres, começando desmarcada
-        tabelaItens.value = masterItemsResponse.data.map(itemMestre => ({
+
+        const masterItems = publicChecklistResponse.data.itens_mestre || [];
+        if (!masterItems.length) {
+            throw new Error('Nenhum item de checklist disponível para preenchimento.');
+        }
+
+        tabelaItens.value = masterItems.map(itemMestre => ({
             master_id: itemMestre.id,
             nome: itemMestre.nome,
-            observacoes: '', // Começa vazia
+            observacoes: '',
         }));
 
     } catch (err) {
         console.error("Erro ao carregar dados:", err);
-        error.value = "Não foi possível carregar o formulário. O link pode ser inválido ou ter expirado.";
+        const detail = err.response?.data?.error
+            || err.response?.data?.detail
+            || err.message
+            || 'O link pode ser inválido ou ter expirado.';
+        error.value = `Não foi possível carregar o formulário. ${detail}`;
     } finally {
         loading.value = false;
     }

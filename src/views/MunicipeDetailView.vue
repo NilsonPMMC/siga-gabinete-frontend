@@ -10,6 +10,9 @@ import Dialog from 'primevue/dialog';
 import Checkbox from 'primevue/checkbox';
 import RadioButton from 'primevue/radiobutton';
 import MunicipeFormModal from '@/components/municipes/MunicipeFormModal.vue';
+import contatosService from '@/services/contatos';
+import { unwrapPaginatedResponse } from '@/utils/paginatedApi';
+import { formatarLinhaCrmLog } from '@/utils/crmLogs';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +24,7 @@ const showEditModal = ref(false);
 const dossieDialogVisible = ref(false);
 const filtroEscopo = ref('total');
 const secoesSelecionadas = ref(['atendimentos', 'agendas', 'eventos']);
+const ultimoLogCrm = ref(null);
 
 /** Histórico unificado: atendimentos (inclui visitas migradas); visitas legadas só sem vínculo. */
 const historicoUnificado = computed(() => {
@@ -90,10 +94,26 @@ const carregarDadosDoMunicipe = async () => {
     isLoading.value = true;
     const response = await apiClient.get(`/api/municipes/${municipeId}/historico/`);
     municipeData.value = response.data;
+    await carregarUltimoLogCrm(municipeId);
   } catch (error) {
     console.error("Erro ao buscar histórico do munícipe:", error);
   } finally {
     isLoading.value = false;
+  }
+};
+
+const carregarUltimoLogCrm = async (municipeId) => {
+  if (!authStore.canViewCrmLogs || !municipeId) {
+    ultimoLogCrm.value = null;
+    return;
+  }
+  try {
+    const response = await contatosService.getCrmLogs({ municipeId, pageSize: 1 });
+    const { results } = unwrapPaginatedResponse(response);
+    ultimoLogCrm.value = results[0] || null;
+  } catch (error) {
+    console.error('Erro ao carregar último log CRM:', error);
+    ultimoLogCrm.value = null;
   }
 };
 
@@ -103,7 +123,6 @@ onMounted(() => {
 
 // Callback: O que acontece quando o modal termina de salvar?
 const aoSalvarEdicao = () => {
-  // Recarrega os dados para mostrar as alterações na tela
   carregarDadosDoMunicipe();
 };
 
@@ -179,7 +198,12 @@ const enderecoFormatado = computed(() => {
       <div class="header-container flex justify-content-between align-items-center mb-4">
         <div class="flex align-items-center gap-2">
             <Button icon="pi pi-arrow-left" @click="router.push('/contatos')" text rounded severity="secondary" aria-label="Voltar" />
-            <h2 class="page-title m-0">{{ municipeData.dados_cadastrais?.nome || municipeData.nome_completo }}</h2>
+            <div>
+              <h2 class="page-title m-0">{{ municipeData.dados_cadastrais?.nome || municipeData.nome_completo }}</h2>
+              <small v-if="authStore.canViewCrmLogs && ultimoLogCrm" class="text-color-secondary block mt-1">
+                Última alteração: {{ formatarLinhaCrmLog(ultimoLogCrm) }}
+              </small>
+            </div>
         </div>
         <div class="flex align-items-center gap-2">
           <Button 

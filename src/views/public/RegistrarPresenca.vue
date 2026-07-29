@@ -53,6 +53,8 @@
                         <InputText id="email" v-model="form.email" type="email" />
                     </div>
                     
+                    <Message v-if="submitError" severity="error" class="mt-3" :closable="false">{{ submitError }}</Message>
+
                     <Button label="Registrar Presença" class="w-full mt-4" @click="registrar" :loading="submitting" />
                 </div>
             </div>
@@ -84,6 +86,7 @@ const toast = useToast();
 const loading = ref(true);
 const submitting = ref(false);
 const error = ref(null);
+const submitError = ref('');
 const success = ref(false);
 const evento = ref({});
 const erro = ref('');
@@ -98,6 +101,17 @@ const form = ref({
 
 const limparFormulario = () => {
     form.value = { nome_completo: '', data_nascimento: '', telefone: '', orgao: '', email: '' };
+};
+
+const extrairErroApi = (err, fallback) => {
+    const data = err.response?.data;
+    if (typeof data === 'string' && data.trim()) {
+        return data.trim();
+    }
+    if (data && typeof data === 'object') {
+        return data.error || data.detail || data.status || data.message || fallback;
+    }
+    return fallback;
 };
 
 onMounted(async () => {
@@ -124,12 +138,18 @@ const registrar = async () => {
     }
 
     submitting.value = true;
+    submitError.value = '';
     try {
-        // O objeto 'form.value' agora contém os novos campos e será enviado para a API
         const response = await apiClient.post(`/api/public/check-in/${props.contaId}/`, form.value);
+        const mensagem = response.data?.status;
+        if (mensagem && mensagem.toLowerCase().includes('já foi registrada')) {
+            toast.add({ severity: 'info', summary: 'Presença confirmada', detail: mensagem, life: 6000 });
+        }
         success.value = true;
     } catch (err) {
-        error.value = 'Não foi possível registrar a presença.';
+        const detail = extrairErroApi(err, 'Não foi possível registrar a presença. Tente novamente.');
+        submitError.value = detail;
+        toast.add({ severity: 'error', summary: 'Erro no registro', detail, life: 8000 });
         console.error(err);
     } finally {
         submitting.value = false;

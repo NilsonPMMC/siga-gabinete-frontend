@@ -95,6 +95,13 @@ export const useAuthStore = defineStore('auth', {
       || getters.canViewRelatoriosCheckins
       || getters.canViewRelatoriosAgendas
     ),
+    canViewCrmLogs: (state) => {
+      if (!state.user) return false;
+      if (state.user.is_superuser || state.userGroups.includes('Secretária')) return true;
+      return ['Recepção', 'Membro do Gabinete', 'Operador CRM'].some(
+        (g) => state.userGroups.includes(g)
+      );
+    },
   },
 
   actions: {

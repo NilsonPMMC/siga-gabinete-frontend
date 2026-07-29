@@ -18,6 +18,7 @@ import { ptBR } from 'date-fns/locale';
 // COMPONENTES REUTILIZÁVEIS
 import MunicipeFormModal from '@/components/municipes/MunicipeFormModal.vue';
 import MunicipeUnificarModal from '@/components/municipes/MunicipeUnificarModal.vue'; // <--- IMPORTANTE
+import MunicipeCrmLogsPopover from '@/components/municipes/MunicipeCrmLogsPopover.vue';
 import AiEnrichmentModal from '@/components/municipes/AiEnrichmentModal.vue';
 
 // --- DECLARAÇÕES INICIAIS ---
@@ -713,10 +714,11 @@ const executarAtualizacaoCategoriaLote = async () => {
             <Tag v-if="slotProps.data.qualidade_dados === 'Baixo'" severity="danger" value="Baixo"></Tag>
           </template>
         </Column>
-        <Column header="Ações" style="width: 10rem">
+        <Column header="Ações" style="width: 11rem">
           <template #body="slotProps">
             <AiEnrichmentModal v-if="!isOperadorCrmRestrito" :contact="slotProps.data" @applied="aoEnriquecimentoAplicado" />
             <Button v-if="!isOperadorCrmRestrito" icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico" />
+            <MunicipeCrmLogsPopover :municipe-id="slotProps.data.id" />
             <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicao(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Editar" />
             <Button icon="pi pi-trash" text rounded severity="danger" @click="tentarExcluirContato(slotProps.data)" :disabled="!slotProps.data.pode_editar" title="Excluir" />
           </template>
@@ -763,9 +765,10 @@ const executarAtualizacaoCategoriaLote = async () => {
         <Column header="Bairro">
           <template #body="slotProps">{{ slotProps.data.bairro || '—' }}</template>
         </Column>
-        <Column header="Ações" style="width: 10rem">
+        <Column header="Ações" style="width: 11rem">
           <template #body="slotProps">
             <Button icon="pi pi-id-card" text rounded @click="irParaVisao360(slotProps.data.id)" title="Ver Histórico" />
+            <MunicipeCrmLogsPopover :municipe-id="slotProps.data.id" />
             <Button icon="pi pi-pencil" text rounded severity="secondary" @click="abrirDialogoParaEdicao({ id: slotProps.data.id, nome_completo: slotProps.data.nome, pode_editar: true })" title="Editar" />
             <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmarExclusaoReal({ id: slotProps.data.id, nome_completo: slotProps.data.nome })" title="Excluir" />
           </template>
